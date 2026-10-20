@@ -2,6 +2,11 @@
 
 Newest entries at the top. Each entry records what was done, what was verified, and what comes next, so a fresh session can resume from here.
 
+## 2026-10-20: Phase 6 part 4 (network) blocked
+- `stp.network` + `python -m stp.cli network` written and unit-tested (60 tests pass), committed.
+- The real run failed: Overpass (overpass-api.de, overpass.private.coffee) connection timeout from this machine/sandbox, while other HTTPS (example.com) works. Nothing was written; `outputs/phase6/sites_ranked.*` is unchanged (no network columns yet).
+- **Waiting on the user:** allow Overpass access (or retry outside the sandbox), or build the graph from the local QuickOSM roads instead (no topology: lines must be split at crossings, which also wrongly joins bridges/flyovers), or skip part 4.
+
 ## 2026-10-20: Phase 6 parts 2-3 done (sensitivity, ranked table)
 - Found and fixed: ~4,740 pixels score exactly 8.0; float rounding decided whether they pass (another arithmetic path drops 4,005). Threshold now `>= 8 - 1e-6` (`selection.threshold_tolerance`), matching QGIS; Phase 5 parity unchanged.
 - `python -m stp.cli sensitivity` (~5 min): 300 draws -> sites 25-101 (5-95%), median IoU 0.555; 14/59 sites persistent in >= 90% of draws, 20 in >= 75%. Residential weight dominates (+-20% -> 23..105 sites). The fixed >= 8 threshold sits at the top of the 3-8.48 range, hence the fragility.
