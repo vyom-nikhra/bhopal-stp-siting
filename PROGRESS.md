@@ -2,12 +2,11 @@
 
 Newest entries at the top. Each entry records what was done, what was verified, and what comes next, so a fresh session can resume from here.
 
-## 2026-10-20: Phase 6 part 4 (network) blocked
-- `stp.network` + `python -m stp.cli network` written and unit-tested (60 tests pass), committed.
-- The real run failed: Overpass (overpass-api.de, overpass.private.coffee) connection timeout from this machine/sandbox, while other HTTPS (example.com) works. Nothing was written; `outputs/phase6/sites_ranked.*` is unchanged (no network columns yet).
-- Retried outside the sandbox with the user's OK: still times out. DNS resolves and nominatim.openstreetmap.org works, but every public Overpass mirror (overpass-api.de, kumi.systems, mail.ru, private.coffee, osm.jp) fails to connect, so this network blocks Overpass. Not a sandbox issue.
-- The download is needed only once: `python -m stp.cli network` saves `outputs/phase6/drive_network.graphml` and later runs are offline.
-- **Waiting on the user:** run `network` once on another network (e.g. a phone hotspot), or build the graph from the local QuickOSM roads (no junction topology; bridges get joined), or skip part 4.
+## 2026-10-20: Phase 6 part 4 (network) done
+- The Overpass block was temporary on the user's network; the retry worked. Drivable graph 63,056 nodes / 162,786 edges, cached at `outputs/phase6/drive_network.graphml` (later runs are offline).
+- `python -m stp.cli network`: all 59 sites reach a major road; total access median 2.6 km, max 7.0 km. Last mile to a drivable junction is > 250 m for 31 sites, vs 8 by straight-line any-road distance: QuickOSM roads include footways/tracks. Details in docs/parity.md 6d.
+- Order of the Phase 6 commands: `sensitivity` -> `sites` -> `network` (network adds columns to the ranked table; rerunning `sites` drops them).
+- **Waiting on the user:** Phase 6 part 1 (AHP pairwise judgements), part 5 (ground-truth labelling), and whether to change the fixed >= 8 threshold given the sensitivity results.
 
 ## 2026-10-20: Phase 6 parts 2-3 done (sensitivity, ranked table)
 - Found and fixed: ~4,740 pixels score exactly 8.0; float rounding decided whether they pass (another arithmetic path drops 4,005). Threshold now `>= 8 - 1e-6` (`selection.threshold_tolerance`), matching QGIS; Phase 5 parity unchanged.

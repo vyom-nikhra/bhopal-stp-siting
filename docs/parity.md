@@ -235,3 +235,20 @@ Of the 59 baseline sites, 14 are selected (≥ 50% of their area) in ≥ 90% of 
 - the persistence from 6b, a `robust` flag (≥ 75%), and centroid lon/lat.
 
 Sites are ranked by mean suitability, then area. 20 of the 59 are robust.
+
+### 6d. Road-network access
+
+`python -m stp.cli network` adds network columns to `outputs/phase6/sites_ranked.*`. The drivable OSM network for the boundary plus 1 km (63,056 nodes, 162,786 edges, downloaded through osmnx on 2026-10-20 and cached as `drive_network.graphml`) is routed with one multi-source Dijkstra on the reversed graph, so one-way streets count. Major roads = motorway, trunk, primary, secondary (and their links). Summary from `scripts/summarise_access.py`:
+
+| Measure | Median | Max |
+|---|---|---|
+| Straight-line distance to any QuickOSM road | 14 m | 626 m |
+| Last mile to the nearest drivable junction | 258 m | 1,382 m |
+| Network distance from there to a major road | 2,043 m | 6,123 m |
+| Total access (last mile + network) | 2,620 m | 6,969 m (90th pct 5,501 m) |
+
+All 59 sites reach a major road.
+
+**15. Straight-line "distance to road" overstates truck access.** The QuickOSM roads layer includes footways, paths and tracks, which a vacuum truck can't use. Only 8 sites are more than 250 m from any road, but 31 are more than 250 m from a drivable junction (21 more than 500 m), and for 24 sites the drivable last mile is over 250 m longer than the any-road distance. The original road criterion (and Query 3) therefore rates some sites as accessible that aren't for trucks.
+
+Caveat: the last mile is measured to the nearest junction (graph node), not the nearest point along a road edge, so it is an upper bound where a long road segment passes a site without a junction nearby. The OSM network was downloaded in October 2026, months after the February 2026 QuickOSM roads.
