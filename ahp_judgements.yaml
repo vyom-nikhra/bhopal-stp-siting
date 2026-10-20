@@ -4,7 +4,7 @@
 # more, and how much?" on Saaty's scale: 1 equal, 3 moderately, 5 strongly, 7 very
 # strongly, 9 extremely more important (2, 4, 6, 8 in between).
 #
-# Status: FIRST DRAFT by Claude (2026-10-20), to be reviewed and corrected by Vyom.
+# Drafted by Claude and reviewed and approved by Vyom (2026-10-20).
 # Edit `prefer` / `strength` and rerun `python -m stp.cli ahp`; the questionnaire
 # (docs/ahp_questionnaire.md), the weights and the consistency check are regenerated.
 #
@@ -14,6 +14,8 @@
 #   score 9-10 almost everywhere, so they separate sites far less than their names suggest.
 # - Overlap between criteria is moderate at most (Spearman |rho| <= 0.35): DEM-drainage
 #   0.35, DEM-water 0.34, residential-drainage -0.34, residential-roads -0.32.
+
+status: "Drafted by Claude; reviewed and approved by Vyom on 2026-10-20."
 
 criteria:
   residential: "Distance from residential areas (farther = better: odour, health, public acceptance)"
@@ -167,10 +169,7 @@ judgements:
     why: >-
       Land availability is a precondition; elevation affects running cost.
 
-# Open questions for the reviewer (not encoded in the matrix):
-# 1. Direction of the residential criterion. The original model scores "farther from homes"
-#    as better. For a DECENTRALISED plant, being near the sewage source shortens the sewer
-#    network; the original direction suits a centralised plant. Keep, cap (e.g. better up
-#    to 500-1000 m, flat beyond), or reverse?
-# 2. Land cover is used twice: as a weighted criterion and as Query 2 (barren only).
-#    Should it stay in the weighted sum at all?
+# Decisions on the open questions (2026-10-20, Vyom):
+# 1. Residential criterion direction: kept (farther = better). All 59 sites are 2.1-7.6 km
+#    from mapped residential areas; a capped version was suggested as a scenario.
+# 2. Land cover stays in the weighted sum as well as Query 2 (Query 2 is currently a no-op).
