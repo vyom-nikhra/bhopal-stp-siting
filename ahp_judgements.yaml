@@ -1,0 +1,176 @@
+# AHP pairwise judgements for the seven siting criteria.
+#
+# Each entry answers: "For siting a decentralised STP in Bhopal, which criterion matters
+# more, and how much?" on Saaty's scale: 1 equal, 3 moderately, 5 strongly, 7 very
+# strongly, 9 extremely more important (2, 4, 6, 8 in between).
+#
+# Status: FIRST DRAFT by Claude (2026-10-20), to be reviewed and corrected by Vyom.
+# Edit `prefer` / `strength` and rerun `python -m stp.cli ahp`; the questionnaire
+# (docs/ahp_questionnaire.md), the weights and the consistency check are regenerated.
+#
+# Evidence used (scripts/criteria_correlation.py, corrected land cover):
+# - Score spread in Bhopal (sd of the 1-10 score): residential 1.83, water 1.81,
+#   drainage 2.04, land cover 3.90, DEM 1.34, roads 0.84, slope 0.61. Slope and roads
+#   score 9-10 almost everywhere, so they separate sites far less than their names suggest.
+# - Overlap between criteria is moderate at most (Spearman |rho| <= 0.35): DEM-drainage
+#   0.35, DEM-water 0.34, residential-drainage -0.34, residential-roads -0.32.
+
+criteria:
+  residential: "Distance from residential areas (farther = better: odour, health, public acceptance)"
+  water: "Distance from lakes and water bodies (farther = better: protect Upper Lake / Bhojtal)"
+  drainage: "Closeness to natural drainage (closer = better: outfall for treated effluent)"
+  slope: "Gentle slope (flatter = better: construction cost)"
+  roads: "Closeness to roads (closer = better: construction and desludging-truck access)"
+  lulc: "Land cover (barren best: no clearing, lower acquisition conflict)"
+  dem: "Low elevation (lower = better: gravity flow from the catchment)"
+
+judgements:
+  - a: residential
+    b: water
+    prefer: water
+    strength: 2
+    why: >-
+      Upper Lake is a Ramsar wetland and the city's main drinking-water source (per the
+      project report); polluting it is far harder to undo than nuisance near homes, which a
+      compact plant and the separate 500 m school/hospital buffers already reduce. Only
+      slightly, because resident opposition can stall a project outright.
+  - a: residential
+    b: drainage
+    prefer: residential
+    strength: 2
+    why: >-
+      A longer outfall to a drain is an engineering cost that can be piped; odour and
+      health complaints near homes cannot be engineered away as easily.
+  - a: residential
+    b: slope
+    prefer: residential
+    strength: 4
+    why: >-
+      96% of the city scores 9-10 on slope, so slope barely separates sites here, and
+      grading a mild slope is routine; distance from homes varies widely and drives acceptance.
+  - a: residential
+    b: roads
+    prefer: residential
+    strength: 3
+    why: >-
+      A short access road can be built; a site next to homes stays contested. Roads also
+      score 9-10 on 93% of the city.
+  - a: residential
+    b: lulc
+    prefer: residential
+    strength: 2
+    why: >-
+      Land cover matters (acquisition cost, clearing vegetation), but Query 2 already
+      requires barren land for every final site, so its overlay weight does less work.
+  - a: residential
+    b: dem
+    prefer: residential
+    strength: 3
+    why: >-
+      Low ground helps gravity flow, but pumping is a known operating cost; siting next to
+      homes is a recurring social cost.
+  - a: water
+    b: drainage
+    prefer: water
+    strength: 3
+    why: >-
+      These pull in opposite directions near the lakes: drains feed the lakes. Protecting
+      the lake should win over a short outfall.
+  - a: water
+    b: slope
+    prefer: water
+    strength: 5
+    why: >-
+      Lake protection is a legal and ecological priority; slope is a minor construction cost
+      that hardly varies in Bhopal.
+  - a: water
+    b: roads
+    prefer: water
+    strength: 4
+    why: Environmental protection of the lake outweighs access-road length.
+  - a: water
+    b: lulc
+    prefer: water
+    strength: 3
+    why: >-
+      Contaminating the lake is worse than acquiring non-barren land, and barren land is
+      already enforced by Query 2.
+  - a: water
+    b: dem
+    prefer: water
+    strength: 4
+    why: >-
+      The lake is the receiving water body most at risk; elevation is an efficiency factor.
+  - a: drainage
+    b: slope
+    prefer: drainage
+    strength: 3
+    why: >-
+      A decentralised plant needs somewhere to discharge treated water every day; slope is a
+      one-off construction cost and barely varies here.
+  - a: drainage
+    b: roads
+    prefer: drainage
+    strength: 2
+    why: >-
+      Daily effluent discharge matters more than occasional truck access, and roads are
+      close almost everywhere in the city.
+  - a: drainage
+    b: lulc
+    prefer: drainage
+    strength: 1
+    why: Both are about equally important operational and land factors.
+  - a: drainage
+    b: dem
+    prefer: drainage
+    strength: 2
+    why: >-
+      They overlap partly (rho 0.35: drains run through low ground). The outfall is the
+      direct requirement; elevation is the indirect one.
+  - a: slope
+    b: roads
+    prefer: roads
+    strength: 2
+    why: >-
+      Both barely vary in Bhopal; access for desludging trucks is a recurring need, grading
+      is one-off.
+  - a: slope
+    b: lulc
+    prefer: lulc
+    strength: 3
+    why: >-
+      Clearing vegetation or acquiring occupied land is costlier and more contentious than
+      grading gentle slopes.
+  - a: slope
+    b: dem
+    prefer: dem
+    strength: 2
+    why: >-
+      Gravity flow from the catchment saves pumping every day; slope within the site is a
+      one-off cost.
+  - a: roads
+    b: lulc
+    prefer: lulc
+    strength: 2
+    why: Land availability is harder to fix than a short access road.
+  - a: roads
+    b: dem
+    prefer: dem
+    strength: 1
+    why: >-
+      Daily gravity flow vs recurring truck access: about equal, and both vary little
+      compared with the distance criteria.
+  - a: lulc
+    b: dem
+    prefer: lulc
+    strength: 2
+    why: >-
+      Land availability is a precondition; elevation affects running cost.
+
+# Open questions for the reviewer (not encoded in the matrix):
+# 1. Direction of the residential criterion. The original model scores "farther from homes"
+#    as better. For a DECENTRALISED plant, being near the sewage source shortens the sewer
+#    network; the original direction suits a centralised plant. Keep, cap (e.g. better up
+#    to 500-1000 m, flat beyond), or reverse?
+# 2. Land cover is used twice: as a weighted criterion and as Query 2 (barren only).
+#    Should it stay in the weighted sum at all?

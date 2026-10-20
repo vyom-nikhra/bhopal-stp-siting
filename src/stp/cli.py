@@ -1,6 +1,7 @@
 """Command-line entry point: `python -m stp.cli <command> [--config config.yaml]`.
 
-Commands: phase1, phase2, phase3, phase3k, phase4, phase5, sensitivity, sites, network
+Commands: phase1, phase2, phase3, phase3k, phase4, phase5, sensitivity, sites, network,
+threshold, ahp, review
 (see `--help`).
 """
 
@@ -875,6 +876,9 @@ def main() -> None:
     sub.add_parser("sensitivity", help="Phase 6a: weight sensitivity of the corrected result")
     sub.add_parser("sites", help="Phase 6b: per-site statistics and ranked site table")
     sub.add_parser("network", help="Phase 6d: road-network access per site (osmnx)")
+    sub.add_parser("threshold", help="Phase 6e: compare suitability threshold rules")
+    sub.add_parser("ahp", help="Phase 6c: AHP weights, consistency, questionnaire, effect")
+    sub.add_parser("review", help="Site-check sheet (CSV with map links + KML outlines)")
     args = p.parse_args()
     cfg = load_config(args.config)
     if args.cmd == "phase1":
@@ -895,6 +899,14 @@ def main() -> None:
         run_sites(cfg)
     elif args.cmd == "network":
         run_network(cfg)
+    elif args.cmd in ("threshold", "ahp", "review"):
+        from stp import analysis  # imports cli helpers, so import lazily
+
+        {
+            "threshold": analysis.run_threshold,
+            "ahp": analysis.run_ahp,
+            "review": analysis.run_review,
+        }[args.cmd](cfg)
 
 
 if __name__ == "__main__":

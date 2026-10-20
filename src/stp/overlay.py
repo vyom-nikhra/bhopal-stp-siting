@@ -55,5 +55,6 @@ def weighted_sum(layers: dict[str, np.ndarray], weights: dict[str, float]) -> np
         raise ValueError(f"Weights sum to {total}, expected 1")
     out = np.zeros(next(iter(layers.values())).shape, dtype="float64")
     for name, w in weights.items():
-        out += w * layers[name]  # NaN propagates
+        # Cast first: float32 products would put exact 8.0 ties a hair either side of 8.
+        out += w * np.asarray(layers[name], dtype="float64")  # NaN propagates
     return out

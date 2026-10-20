@@ -252,3 +252,34 @@ All 59 sites reach a major road.
 **15. Straight-line "distance to road" overstates truck access.** The QuickOSM roads layer includes footways, paths and tracks, which a vacuum truck can't use. Only 8 sites are more than 250 m from any road, but 31 are more than 250 m from a drivable junction (21 more than 500 m), and for 24 sites the drivable last mile is over 250 m longer than the any-road distance. The original road criterion (and Query 3) therefore rates some sites as accessible that aren't for trucks.
 
 Caveat: the last mile is measured to the nearest junction (graph node), not the nearest point along a road edge, so it is an upper bound where a long road segment passes a site without a junction nearby. The OSM network was downloaded in October 2026, months after the February 2026 QuickOSM roads.
+
+### 6e. Threshold rules
+
+`python -m stp.cli threshold` compares rules for Query 1 under the same 100 random weight draws (each weight × U(0.8, 1.2), renormalised; corrected land cover). "Top X%" keeps the best X% of valid pixels, so its numeric cut moves with the weights.
+
+| Rule | Cut | Baseline | Sites (5–95%) | Area (5–95%) | Location stability, median IoU (p5) |
+|---|---|---|---|---|---|
+| Fixed ≥ 8 (original) | 8.00 | 59 sites, 191.8 ha | 23–95 | 71–424 ha | 0.541 (0.283) |
+| Top 0.25% | 8.02 | 55 sites, 154.6 ha | 38–58 | 130–157 ha | 0.679 (0.425) |
+| **Top 0.3395%** (same share as ≥ 8) | 7.99 | 60 sites, 193.1 ha | **45–66** | **187–211 ha** | **0.653 (0.460)** |
+| Top 0.5% | 7.93 | 74 sites, 310.3 ha | 62–87 | 301–335 ha | 0.731 (0.458) |
+
+Robust core (pixels selected in ≥ t of the 300 sensitivity draws, then the same buffers and 0.5 ha filter): t = 75% → 33 sites, 89.4 ha; t = 90% → 24 sites, 58.4 ha.
+
+**16. A relative ("top X%") cut removes most of the swing in how much land is selected, but only part of the swing in where it is.** At the same size as the original rule, the top-0.34% baseline is almost identical to the ≥ 8 result (IoU 0.993), while the selected area under weight changes narrows from 71–424 ha to 187–211 ha. Location stability improves from 0.54 to 0.65: the rest is genuine dependence on the weights, which the AHP review and per-site persistence address. Because scores take discrete values, top-X% cuts land slightly above their nominal share (0.25% selects 0.277%).
+
+### 6f. AHP weights (draft judgements)
+
+`python -m stp.cli ahp` reads `ahp_judgements.yaml` (21 pairwise judgements with reasons; a first draft by Claude for the author to review) and writes `docs/ahp_questionnaire.md` and `outputs/phase6/ahp/`. Inputs to the judgements came from `scripts/criteria_correlation.py`: criterion overlap is moderate at most (|ρ| ≤ 0.35), and slope and roads score 9–10 on 96% and 93% of the city, so they separate sites little.
+
+| Criterion | Original (asserted) | AHP draft |
+|---|---|---|
+| Residential distance | 0.250 | 0.215 |
+| Water distance | 0.200 | **0.333** |
+| Drainage distance | 0.150 | 0.129 |
+| Slope | 0.120 | 0.046 |
+| Road distance | 0.100 | 0.074 |
+| Land cover | 0.100 | 0.129 |
+| DEM | 0.080 | 0.074 |
+
+Consistency ratio CR = 0.0099 (acceptable below 0.10); the geometric-mean method agrees to 0.002. With the draft AHP weights: ≥ 8 rule → 38 sites, 219.2 ha (IoU 0.49 with the original-weight sites); top 0.3395% → 34 sites, 233.3 ha. 15 of the 20 robust sites are kept under both rules.

@@ -2,6 +2,13 @@
 
 Newest entries at the top. Each entry records what was done, what was verified, and what comes next, so a fresh session can resume from here.
 
+## 2026-10-20: Phase 6 threshold comparison, AHP draft, site-check sheet
+- `python -m stp.cli threshold` (~10 min): fixed >= 8 swings 23-95 sites / 71-424 ha under +-20% weights; top 0.3395% (same size) gives 45-66 sites / 187-211 ha, location IoU 0.65 vs 0.54. Robust core: 33 sites (>= 75%), 24 sites (>= 90%). docs/parity.md 6e.
+- `python -m stp.cli ahp`: draft judgements in `ahp_judgements.yaml` (by Claude, for Vyom to review), questionnaire generated at `docs/ahp_questionnaire.md`. CR 0.0099; water becomes the top weight (0.333). >= 8 with AHP weights: 38 sites / 219 ha, 15/20 robust sites kept. docs/parity.md 6f.
+- `python -m stp.cli review`: `review/site_check.csv` (59 sites, Google/Bing links, blank columns), `review/sites.kml`, `review/README.md`. Sent to the user with the questionnaire.
+- `overlay.weighted_sum` now casts layers to float64 before multiplying; Phase 4/5 parity re-verified (exact). 65 tests pass.
+- **Waiting on the user:** AHP review (answers + 2 open questions: residential direction for decentralised plants; land cover used twice), the filled site-check sheet, and the threshold decision (recommendation: top-X% at 0.3395% plus the robust flag).
+
 ## 2026-10-20: Phase 6 part 4 (network) done
 - The Overpass block was temporary on the user's network; the retry worked. Drivable graph 63,056 nodes / 162,786 edges, cached at `outputs/phase6/drive_network.graphml` (later runs are offline).
 - `python -m stp.cli network`: all 59 sites reach a major road; total access median 2.6 km, max 7.0 km. Last mile to a drivable junction is > 250 m for 31 sites, vs 8 by straight-line any-road distance: QuickOSM roads include footways/tracks. Details in docs/parity.md 6d.

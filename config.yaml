@@ -175,3 +175,24 @@ network:
   # Drivable OSM network for the boundary plus this margin (one Overpass request, then
   # cached as outputs/phase6/drive_network.graphml).
   boundary_buffer_m: 1000
+
+threshold:
+  # Phase 6e: compare threshold rules under the same random weight draws.
+  # top_pct 0.3395 matches the share of pixels the fixed >= 8 rule selects (27,519 px).
+  rules:
+    - {kind: fixed, value: 8}
+    - {kind: top_pct, pct: 0.25}
+    - {kind: top_pct, pct: 0.3395}
+    - {kind: top_pct, pct: 0.5}
+  draws: 100
+  seed: 1
+  # Robust core: pixels selected in at least this share of the sensitivity draws.
+  robust_core: [0.75, 0.9]
+
+ahp:
+  # Pairwise judgements (with reasons); the questionnaire is generated from this file.
+  judgements_file: "ahp_judgements.yaml"
+  # Threshold rules under which to compare the AHP weights with the original weights.
+  evaluate_rules:
+    - {kind: fixed, value: 8}
+    - {kind: top_pct, pct: 0.3395}
