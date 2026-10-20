@@ -2,6 +2,14 @@
 
 Newest entries at the top. Each entry records what was done, what was verified, and what comes next, so a fresh session can resume from here.
 
+## 2026-10-20: Phase 5 done
+- `python -m stp.cli phase5`: queries, 4-connected polygonize (`rasterio.features.shapes`), ellipsoidal area (`pyproj.Geod`), 500 m school/hospital buffers, difference + area filter. Three variants in `outputs/phase5/<variant>/` (query COGs, `all_polygons.parquet`, `sites.parquet`, `sites.geojson`).
+- **Exact parity:** query rasters identical; 47/47 candidates and 46/46 final sites with 0 m2 symmetric difference.
+- Findings: Query 2 never removed a pixel; `Area_sqm` is ellipsoidal area; the QGIS step order did no harm here.
+- Corrected result (variant C): 59 sites / 191.8 ha (vs 46 / 125.3 ha). 45/46 originals still overlap; 23 new sites (22.6 ha); 1 original (0.56 ha) dropped.
+- 44 unit tests pass; ruff clean.
+- **Next (Phase 6):** AHP pairwise matrix + consistency ratio, weight sensitivity (Monte Carlo), zonal stats + nearest-feature attributes -> ranked site table, osmnx network access, ground-truth check plan. Decide with the user which parts.
+
 ## 2026-10-20: Phase 4 done
 - `python -m stp.cli phase4`: 1-10 scores (`stp.standardize`), explicit nearest-neighbour alignment onto the Sentinel 10 m grid (`rioxarray.reproject_match`, `stp.overlay`), weighted overlay. Writes `outputs/phase4/score_*.tif` and three suitability surfaces.
 - **Exact parity:** all six scores identical to `Reclass_*`; the pipeline overlay is identical to `Final_STP_Suitability_Map` (0 difference, 8,105,749 px).

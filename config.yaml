@@ -14,6 +14,7 @@ paths:
   reference_rasters: "D:/Vyom/GEOTA/Bhopal_STP_Project/02_Processed_Layers/Raster_Data"
   reference_vectors: "D:/Projects/GEOTA/Final Project/Vector_Data"
   reference_queries: "D:/Projects/GEOTA/Final Project/Raster_Data"
+  reference_dashboard: "D:/Projects/GEOTA/Final Project/STP_Dashboard"
   # Pipeline outputs (git-ignored)
   output: "outputs"
 
@@ -147,6 +148,7 @@ selection:
   buffer_m: 500              # schools + hospitals (recovered)
   buffer_segments: 30        # (recovered)
   min_area_sqm: 5000
+  # QGIS $area = ellipsoidal (WGS84) area, stored rounded to whole m2 (verified 47/47)
   # Original order was area filter -> difference; the pipeline uses difference -> area filter.
   exclusion_layers: ["Schools_Bhopal", "Hospital_Bhopal"]
 

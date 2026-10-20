@@ -60,7 +60,8 @@
 - B11 in the QGIS stack has a row-assignment artefact from that run (28% of pixels); see docs/parity.md.
 - K-Means NoData mask never matched; one cluster is the out-of-boundary void.
 - Report says 4 classes; code used k=5.
-- Report orders Difference before the area filter; the real order was the reverse.
+- Report orders Difference before the area filter; the real order was the reverse (no effect on the result here).
+- Query 2 (barren filter) never removed a pixel.
 - Dashboard showed 47 pre-buffer sites, including one inside an exclusion buffer.
 - Mixed 10 m / shifted 10 m / 12.5 m grids resampled silently.
 - Scoring rule not recorded; recovered from the data as GRASS's integer-input rescale (inputs rounded to whole numbers first, hence 5° slope steps).

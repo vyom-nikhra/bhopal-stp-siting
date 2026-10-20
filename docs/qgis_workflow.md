@@ -89,10 +89,10 @@ S = 0.25·Residential + 0.20·Water + 0.15·Drainage + 0.12·Slope
 | Step | Logic | Source |
 |---|---|---|
 | Query 1 | suitability ≥ 8.0 | [R] |
-| Query 2 | Query 1 AND LULC score == 10 | [R] |
+| Query 2 | Query 1 AND LULC score == 10; removed no pixels (Query 1 = Query 2) | [R][D] |
 | Query 3 | Query 2 AND roads score ≥ 7 | [R] |
 | Polygonize | `gdal:polygonize`, **4-connected**, field `DN` → 984 polygons, including the DN=0 background | [H][D] |
-| Area | `Area_sqm` field calculated (not logged) | [D] |
+| Area | `Area_sqm` = ellipsoidal (WGS84) area, rounded to whole m² (QGIS `$area` default; not logged) | [D] |
 | Buffers | `native:buffer` 500 m, 30 segments, schools and hospitals separately → `native:mergevectorlayers` | [H] |
 | Final | `native:difference` of (`Area_sqm >= 5000 AND DN = 1`) minus buffers → **46 sites, 1,254,202 m²** | [H][D] |
 

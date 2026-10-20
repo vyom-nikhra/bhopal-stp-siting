@@ -155,3 +155,33 @@ Reproduce with `python -m stp.cli phase4` (report: `outputs/parity/phase4.json`)
 | Pipeline with corrected land cover (Phase 3b) | 2.98 | 8.48 | 5.79 | 0.3395% |
 
 The corrected land cover raises the area scoring ≥ 8 by about 54%, mostly because more land is now classed as barren (score 10).
+
+## Phase 5: site selection
+
+Reproduce with `python -m stp.cli phase5` (report: `outputs/parity/phase5.json`).
+
+| Check | Result |
+|---|---|
+| Query 1, 2, 3 rasters vs QGIS | **Identical** (mask agree 1.0, exact 1.0) |
+| Candidates ≥ 5000 m² vs `Candidate_Sites_Polygons.geojson` | 47 vs 47, 0 m² symmetric difference |
+| Final sites vs `Final_Safe_Sites.shp` | 46 vs 46, 0 m² symmetric difference |
+
+**The pipeline reproduces the QGIS site selection exactly.**
+
+### Findings
+
+**10. Query 2 (the "environmental check") never removed a pixel.** Query 1 and Query 2 select the same 17,896 pixels: every pixel scoring ≥ 8 was already barren (land-cover score 10). The same holds with the corrected land cover (27,519 = 27,519). With a 0.10 land-cover weight, a pixel can in principle reach 8 without being barren, but none does here.
+
+**11. `Area_sqm` is QGIS's ellipsoidal area.** It equals the area on the WGS84 ellipsoid, rounded to whole m², for all 47 candidates; the planar UTM area is about 0.09% larger here (e.g. 5,100 vs 5,095.6 m²). The pipeline measures ellipsoidal area with `pyproj.Geod`, which is both faithful and the true ground area.
+
+**12. Filtering before the buffer difference did no harm here.** Running the difference first and then re-measuring (the order the report describes) gives the same 46 sites: the buffers removed one 47th candidate entirely and trimmed none below 5000 m². The pipeline uses the safer order (difference, then filter), and a unit test shows a case where the two orders differ.
+
+### Variants
+
+| Variant | Land cover | Order | Query 3 px | Sites | Area (ellipsoidal) |
+|---|---|---|---|---|---|
+| A (QGIS reproduction) | original | filter → difference | 16,805 | 46 | 125.3 ha |
+| B | original | difference → filter | 16,805 | 46 | 125.3 ha |
+| **C (corrected)** | **corrected (Phase 3b)** | difference → filter | 25,694 | **59** | **191.8 ha** |
+
+How C relates to A (`scripts/compare_site_sets.py`): 45 of the 46 original sites still overlap a corrected site and 83.3% of the original site area is still selected; 1 original site (0.56 ha) drops out; 23 corrected sites are entirely new (22.6 ha), and the rest of the gain comes from existing sites growing. So the land-cover correction extends the original result rather than replacing it. The barren class's fallow-farmland caveat (Phase 3b) applies to the added area.

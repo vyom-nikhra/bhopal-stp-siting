@@ -1,6 +1,6 @@
 """Command-line entry point: `python -m stp.cli <command> [--config config.yaml]`.
 
-Commands: phase1, phase2, phase3, phase3k, phase4 (see `--help`).
+Commands: phase1, phase2, phase3, phase3k, phase4, phase5 (see `--help`).
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ import numpy as np
 import rasterio
 from rasterio.crs import CRS
 
-from stp import io, lulc, overlay, parity, preprocess, proximity, standardize
+from stp import io, lulc, overlay, parity, preprocess, proximity, selection, standardize
 from stp.config import DEFAULT_CONFIG, Grid, load_config
 
 # See scripts/diagnose_b11.py and docs/parity.md.
@@ -477,6 +477,116 @@ def run_phase4(cfg: dict) -> dict:
     return payload
 
 
+def run_phase5(cfg: dict) -> dict:
+    """Queries, polygonize, exclusion buffers, area filter; three variants with parity."""
+    crs = CRS.from_user_input(cfg["crs"])
+    outputs = Path(cfg["paths"]["output"])
+    out = outputs / "phase5"
+    ref = Path(cfg["paths"]["reference_rasters"])
+    sel = cfg["selection"]
+    grid = Grid.from_config(cfg, "sentinel_10m")
+    template = overlay.grid_template(grid)
+
+    def aligned(path: Path) -> np.ndarray:
+        return overlay.align(_read_da(path, crs)[0], template)
+
+    roads = aligned(outputs / "phase4" / "score_roads.tif")
+    lulc_scores = {
+        "original": aligned(ref / "Reclass_ML_LULC.tif"),
+        "corrected": aligned(outputs / "phase3" / "lulc_score.tif"),
+    }
+    surfaces = {
+        "original": aligned(outputs / "phase4" / "suitability_pipeline_original_lulc.tif"),
+        "corrected": aligned(outputs / "phase4" / "suitability_pipeline_corrected_lulc.tif"),
+    }
+
+    geom = io.read_boundary(cfg["paths"]["boundary"], crs).union_all()
+    points = [
+        proximity.load_clipped(cfg["paths"]["vectors_raw"], name, geom, crs)
+        for name in sel["exclusion_layers"]
+    ]
+    exclusions = selection.exclusion_zones(points, sel["buffer_m"], sel["buffer_segments"])
+    print(f"[phase5] exclusion buffers: {[len(p) for p in points]} points -> {len(exclusions)}")
+
+    variants = {
+        "A_qgis_order_original_lulc": ("original", "filter_then_difference"),
+        "B_corrected_order_original_lulc": ("original", "difference_then_filter"),
+        "C_corrected_order_corrected_lulc": ("corrected", "difference_then_filter"),
+    }
+    query_files = {
+        "query_01": "Query_01_High_Potential_Sites.tif",
+        "query_02": "Query_02_Environmental_Check.tif",
+        "query_03": "Query_03_Final_Recommendations.tif",
+    }
+    results, vectors, summary = [], [], {}
+    for vname, (lulc_kind, order) in variants.items():
+        vout = out / vname
+        q = selection.queries(
+            surfaces[lulc_kind],
+            lulc_scores[lulc_kind],
+            roads,
+            sel["suitability_min"],
+            sel["lulc_required"],
+            sel["roads_score_min"],
+        )
+        cand = selection.polygonize(
+            q["query_03"], grid.transform, crs, sel["polygonize_connectivity"]
+        )
+        cand["area_sqm"] = selection.ellipsoidal_area(cand)
+        candidates = cand[np.round(cand["area_sqm"]) >= sel["min_area_sqm"]].copy()
+        sites = selection.select_sites(cand, exclusions, sel["min_area_sqm"], order)
+
+        for qname in query_files:
+            arr = np.where(q["valid"], q[qname].astype("float32"), np.nan).astype("float32")
+            io.write_cog(vout / f"{qname}.tif", arr, grid.transform, crs, np.nan)
+        cand.to_parquet(vout / "all_polygons.parquet")
+        sites.to_parquet(vout / "sites.parquet")
+        sites.to_crs(4326).to_file(vout / "sites.geojson", driver="GeoJSON")
+
+        counts = {k: int(q[k].sum()) for k in query_files}
+        summary[vname] = {
+            "lulc": lulc_kind,
+            "order": order,
+            "query_pixels": counts,
+            "polygons": len(cand),
+            "candidates_ge_min_area": len(candidates),
+            "sites": len(sites),
+            "site_area_sqm": float(sites["area_sqm"].sum()),
+            "smallest_site_sqm": float(sites["area_sqm"].min()) if len(sites) else None,
+        }
+        print(
+            f"[phase5] {vname}: query px {counts}, polygons {len(cand)}, "
+            f"candidates>=min {len(candidates)}, sites {len(sites)}, "
+            f"area {sites['area_sqm'].sum():,.0f} m2"
+        )
+
+        if vname.startswith("A_"):
+            q_ref = Path(cfg["paths"]["reference_queries"])
+            for qname, fname in query_files.items():
+                arr = np.where(q["valid"], q[qname].astype("float32"), np.nan)
+                results.append(
+                    parity.compare(qname, arr, grid.transform, np.nan, q_ref / fname, tol=0)
+                )
+            dash = Path(cfg["paths"]["reference_dashboard"]) / "Candidate_Sites_Polygons.geojson"
+            vectors.append(parity.compare_vectors("candidates", candidates, dash))
+            final_ref = Path(cfg["paths"]["reference_vectors"]) / "Final_Safe_Sites.shp"
+            vectors.append(parity.compare_vectors("final_sites", sites, final_ref))
+
+    print(parity.format_table(results))
+    for v in vectors:
+        print(
+            f"[phase5] {v['name']:12s} ours {v['n_ours']} vs QGIS {v['n_ref']}; "
+            f"{v['measure']} rel diff {v['rel_diff']:.2e}; "
+            f"sym diff {v.get('sym_diff_area', float('nan')):.1f} m2"
+        )
+    report = outputs / "parity" / "phase5.json"
+    report.parent.mkdir(parents=True, exist_ok=True)
+    payload = {"rasters": [r.as_dict() for r in results], "vectors": vectors, "variants": summary}
+    report.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    print(f"[phase5] report -> {report}")
+    return payload
+
+
 def main() -> None:
     p = argparse.ArgumentParser(prog="stp")
     p.add_argument("--config", default=str(DEFAULT_CONFIG))
@@ -486,6 +596,7 @@ def main() -> None:
     sub.add_parser("phase3", help="original K-Means land cover (3a) + parity")
     sub.add_parser("phase3k", help="k-selection metrics for the corrected K-Means (3b)")
     sub.add_parser("phase4", help="1-10 scores, grid alignment, weighted overlay + parity")
+    sub.add_parser("phase5", help="queries, polygons, exclusion buffers, final sites + parity")
     args = p.parse_args()
     cfg = load_config(args.config)
     if args.cmd == "phase1":
@@ -498,6 +609,8 @@ def main() -> None:
         run_phase3k(cfg)
     elif args.cmd == "phase4":
         run_phase4(cfg)
+    elif args.cmd == "phase5":
+        run_phase5(cfg)
 
 
 if __name__ == "__main__":
