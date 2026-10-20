@@ -5,7 +5,9 @@ Newest entries at the top. Each entry records what was done, what was verified, 
 ## 2026-10-20: Phase 6 part 4 (network) blocked
 - `stp.network` + `python -m stp.cli network` written and unit-tested (60 tests pass), committed.
 - The real run failed: Overpass (overpass-api.de, overpass.private.coffee) connection timeout from this machine/sandbox, while other HTTPS (example.com) works. Nothing was written; `outputs/phase6/sites_ranked.*` is unchanged (no network columns yet).
-- **Waiting on the user:** allow Overpass access (or retry outside the sandbox), or build the graph from the local QuickOSM roads instead (no topology: lines must be split at crossings, which also wrongly joins bridges/flyovers), or skip part 4.
+- Retried outside the sandbox with the user's OK: still times out. DNS resolves and nominatim.openstreetmap.org works, but every public Overpass mirror (overpass-api.de, kumi.systems, mail.ru, private.coffee, osm.jp) fails to connect, so this network blocks Overpass. Not a sandbox issue.
+- The download is needed only once: `python -m stp.cli network` saves `outputs/phase6/drive_network.graphml` and later runs are offline.
+- **Waiting on the user:** run `network` once on another network (e.g. a phone hotspot), or build the graph from the local QuickOSM roads (no junction topology; bridges get joined), or skip part 4.
 
 ## 2026-10-20: Phase 6 parts 2-3 done (sensitivity, ranked table)
 - Found and fixed: ~4,740 pixels score exactly 8.0; float rounding decided whether they pass (another arithmetic path drops 4,005). Threshold now `>= 8 - 1e-6` (`selection.threshold_tolerance`), matching QGIS; Phase 5 parity unchanged.
