@@ -21,8 +21,20 @@ from stp.config import load_config
 
 print("python      ", sys.version.split()[0], sys.executable)
 print("stp from    ", stp.__file__)
-for m in [numpy, rasterio, rioxarray, xarray, gpd, pyogrio, shapely, pyproj, scipy, sklearn,
-          rasterstats, osmnx]:
+for m in [
+    numpy,
+    rasterio,
+    rioxarray,
+    xarray,
+    gpd,
+    pyogrio,
+    shapely,
+    pyproj,
+    scipy,
+    sklearn,
+    rasterstats,
+    osmnx,
+]:
     print(f"{m.__name__:12s} {m.__version__:10s} {m.__file__}")
 print(f"{'gdal':12s} {gdal.__version__:10s} rasterio built on GDAL {rasterio.__gdal_version__}")
 
