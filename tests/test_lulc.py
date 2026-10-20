@@ -65,3 +65,36 @@ def test_cluster_profiles_computes_indices_from_reflectance():
     assert rows[0]["ndvi"] == pytest.approx((0.45 - 0.05) / 0.5)
     assert rows[0]["ndbi"] == pytest.approx((0.15 - 0.45) / 0.6)
     assert rows[0]["share"] == pytest.approx(1.0)
+
+
+def _profiles(spec):
+    return [{"cluster": c, "ndvi": ndvi, "mndwi": mndwi} for c, ndvi, mndwi in spec]
+
+
+def test_name_clusters_uses_indices_and_osm_overlap():
+    profiles = _profiles([(1, 0.18, -0.21), (2, 0.15, -0.25), (3, 0.21, -0.39), (4, 0.53, -0.43)])
+    residential = {1: 0.46, 2: 2.43, 3: 0.54, 4: 1.43}
+    water = {1: 9.15, 2: 0.04, 3: 0.16, 4: 0.70}
+    names = lulc.name_clusters(profiles, residential, water)
+    assert names == {"water": 1, "vegetation": 4, "built_up": 2, "barren": 3}
+
+
+def test_name_clusters_rejects_inconsistent_water():
+    profiles = _profiles([(1, 0.18, -0.21), (2, 0.15, -0.25), (3, 0.21, -0.39), (4, 0.53, -0.43)])
+    water = {1: 0.5, 2: 3.0, 3: 0.16, 4: 0.70}  # OSM water mostly in cluster 2
+    with pytest.raises(ValueError, match="water"):
+        lulc.name_clusters(profiles, {1: 0.4, 2: 2.0, 3: 0.5, 4: 1.4}, water)
+
+
+def test_name_clusters_rejects_ambiguous_built_up():
+    profiles = _profiles([(1, 0.18, -0.21), (2, 0.15, -0.25), (3, 0.21, -0.39), (4, 0.53, -0.43)])
+    residential = {1: 0.4, 2: 1.2, 3: 1.1, 4: 1.4}  # both candidates above 1
+    with pytest.raises(ValueError, match="ambiguous"):
+        lulc.name_clusters(profiles, residential, {1: 9.0, 2: 0.1, 3: 0.2, 4: 0.7})
+
+
+def test_overlap_ratio():
+    labels = np.array([0, 0, 1, 1])
+    inside = np.array([True, True, False, False])
+    r = lulc.overlap_ratio(labels, inside, k=2)
+    assert r == {1: pytest.approx(2.0), 2: pytest.approx(0.0)}

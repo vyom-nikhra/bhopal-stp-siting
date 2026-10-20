@@ -2,12 +2,12 @@
 
 Newest entries at the top. Each entry records what was done, what was verified, and what comes next, so a fresh session can resume from here.
 
-## 2026-10-20: Phase 3 in progress (3a done, 3b awaiting decision)
-- 3a: the original `kmeans_lulc.py` reproduced 100% in the user's `pytorch` env (sklearn 1.7.2). With sklearn 1.9.1: 98.9% label agreement on the QGIS stack, 73.5% on ours.
-- The gap is K-Means instability (seed alone: 76-99% agreement on the identical stack; `n_iter_ == 1`), not the B11 artefact.
-- 3b evidence: k=4 best (silhouette 0.366, DB 0.879, ARI 0.82); full KMeans(n_init=10) on a 1M sample is stable (ARI 0.957). Clusters validated against OSM residential/water. Details in docs/parity.md.
-- **Waiting on the user:** k and fitting method for the corrected land cover, and the class -> score table (proposed: barren 10, built-up 3, vegetation 2, water 1, as in the original).
-- **Next:** implement the chosen corrected K-Means in `stp.lulc` + `phase3` output, then Phase 4.
+## 2026-10-20: Phase 3 done
+- 3a: the original `kmeans_lulc.py` reproduced 100% in the user's `pytorch` env (sklearn 1.7.2). With sklearn 1.9.1: 98.9% label agreement on the QGIS stack, 73.5% on ours. The gap is K-Means instability (seed alone: 76-99% on the identical stack; `n_iter_ == 1`), not the B11 artefact.
+- 3b: user chose k=4, full KMeans(n_init=10) on a 1M sample, original scores (barren 10, built-up 3, vegetation 2, water 1). Stable (ARI 0.957); clusters named automatically from MNDWI/NDVI + OSM residential/water overlap (`stp.lulc.name_clusters`, raises if ambiguous).
+- Outputs: `outputs/phase3/lulc_classes.tif` (1 water, 2 built-up, 3 vegetation, 4 barren), `outputs/phase3/lulc_score.tif`. Score identical to the original on 79.7% of pixels; barren grows 44.7% -> 57.3% of the area (fallow farmland caveat).
+- `python -m stp.cli phase3` runs both parts (~2.5 min, mostly the slow MiniBatch replay); `phase3k` regenerates the k-selection evidence. 31 unit tests pass; ruff clean.
+- **Next (Phase 4):** align grids explicitly (rioxarray reproject_match onto sentinel_10m), linear 1-10 rescale with inversion for roads/drainage/DEM, reconstruct the slope rule from Reclass_10_Slope, weighted overlay. Parity vs Final_STP_Suitability_Map using the ORIGINAL LULC score; then a corrected version using lulc_score.tif.
 
 ## 2026-10-20: Phase 2 done
 - `python -m stp.cli phase2`: geometry-only reads (pyogrio, `columns=[]`), `gpd.clip`, rasterise on the proximity grid, exact EDT distances, NoData outside the boundary. Writes COGs and GeoParquet (clipped vectors) to `outputs/phase2/`.

@@ -13,11 +13,76 @@ from __future__ import annotations
 
 import numpy as np
 from scipy.optimize import linear_sum_assignment
-from sklearn.cluster import MiniBatchKMeans
+from sklearn.cluster import KMeans, MiniBatchKMeans
 from sklearn.metrics import adjusted_rand_score, davies_bouldin_score, silhouette_score
 
 CLASS_NODATA = -9999
 SCORE_NODATA = -9999.0
+
+# Fixed class codes for the corrected (k=4) land-cover map.
+CLASS_CODES = {"water": 1, "built_up": 2, "vegetation": 3, "barren": 4}
+
+
+def fit_full_kmeans(
+    x: np.ndarray, k: int, n_init: int, random_state: int, fit_size: int, sample_seed: int
+) -> KMeans:
+    """Lloyd K-Means with restarts, fitted on a fixed random sample of pixels.
+
+    MiniBatchKMeans on all 13.8 M pixels stopped after one pass (n_iter_ == 1) and gave
+    a different partition for every seed; full K-Means on a 1 M-pixel sample converges
+    and is stable across seeds (see docs/parity.md, Phase 3).
+    """
+    rng = np.random.default_rng(sample_seed)
+    idx = rng.choice(len(x), size=min(fit_size, len(x)), replace=False)
+    return KMeans(n_clusters=k, n_init=n_init, random_state=random_state).fit(
+        x[idx].astype("float64")
+    )
+
+
+def predict_chunked(model, x: np.ndarray, chunk: int = 2_000_000) -> np.ndarray:
+    """Assign every pixel to its nearest centroid, in chunks to bound memory."""
+    return np.concatenate(
+        [model.predict(x[i : i + chunk].astype("float64")) for i in range(0, len(x), chunk)]
+    )
+
+
+def name_clusters(
+    profiles: list[dict], residential_ratio: dict[int, float], water_ratio: dict[int, float]
+) -> dict[str, int]:
+    """Name the 4 clusters (1-based ids) as water, vegetation, built_up and barren.
+
+    - water: highest MNDWI, and it must be the cluster most over-represented in OSM water
+    - vegetation: highest NDVI among the rest
+    - built_up / barren: of the remaining two, the one more over-represented in OSM
+      residential areas is built-up
+    `*_ratio` = (cluster's share of pixels inside the OSM layer) / (its share overall).
+    Raises if the evidence is inconsistent instead of guessing.
+    """
+    if len(profiles) != 4:
+        raise ValueError(f"Expected 4 clusters, got {len(profiles)}")
+    by_id = {p["cluster"]: p for p in profiles}
+    water = max(by_id, key=lambda c: by_id[c]["mndwi"])
+    if water != max(water_ratio, key=water_ratio.get):
+        raise ValueError(
+            f"Highest-MNDWI cluster {water} is not the one most over-represented in OSM "
+            f"water ({water_ratio}); cannot name the water class"
+        )
+    rest = [c for c in by_id if c != water]
+    vegetation = max(rest, key=lambda c: by_id[c]["ndvi"])
+    a, b = [c for c in rest if c != vegetation]
+    built_up, barren = (a, b) if residential_ratio[a] > residential_ratio[b] else (b, a)
+    if not residential_ratio[built_up] > 1.0 > residential_ratio[barren]:
+        raise ValueError(
+            f"Built-up/barren split is ambiguous: residential ratios {residential_ratio}"
+        )
+    return {"water": water, "vegetation": vegetation, "built_up": built_up, "barren": barren}
+
+
+def overlap_ratio(labels: np.ndarray, inside: np.ndarray, k: int) -> dict[int, float]:
+    """Per cluster (1-based): share of pixels inside a mask divided by share overall."""
+    overall = np.bincount(labels, minlength=k) / len(labels)
+    within = np.bincount(labels[inside], minlength=k) / max(int(inside.sum()), 1)
+    return {c + 1: float(within[c] / overall[c]) for c in range(k)}
 
 
 def pixel_table(stack: np.ndarray, mask_void: bool) -> tuple[np.ndarray, np.ndarray]:

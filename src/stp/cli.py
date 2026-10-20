@@ -227,13 +227,90 @@ def run_phase3(cfg: dict) -> dict:
             )
         )
 
+    print(parity.format_table(results))
+    corrected = _phase3_corrected(cfg, ours_stack, crs, out, ref / "Reclass_ML_LULC.tif")
+
     report = Path(cfg["paths"]["output"]) / "parity" / "phase3.json"
     report.parent.mkdir(parents=True, exist_ok=True)
-    payload = {"kmeans": summary, "rasters": [r.as_dict() for r in results]}
+    payload = {
+        "kmeans": summary,
+        "rasters": [r.as_dict() for r in results],
+        "corrected": corrected,
+    }
     report.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    print(parity.format_table(results))
-    print(f"[phase3] parity report -> {report}")
+    print(f"[phase3] report -> {report}")
     return payload
+
+
+def _phase3_corrected(
+    cfg: dict, stack_path: Path, crs: CRS, out: Path, original_scores: Path
+) -> dict:
+    """3b: void-masked, k=4 full K-Means; clusters named with OSM evidence; scored."""
+    cc = cfg["lulc"]["corrected"]
+    bands = cfg["sentinel"]["bands"]
+    with rasterio.open(stack_path) as src:
+        stack, transform = src.read(), src.transform
+    grid = Grid.from_config(cfg, "sentinel_10m")
+    if stack.shape[1:] != grid.shape or not transform.almost_equals(grid.transform):
+        raise ValueError("Phase 1 stack is not on the configured sentinel_10m grid")
+
+    t0 = time.perf_counter()
+    x, valid = lulc.pixel_table(stack, mask_void=True)
+    model = lulc.fit_full_kmeans(
+        x, cc["k"], cc["n_init"], cc["random_state"], cc["fit_size"], cc["sample_seed"]
+    )
+    labels = lulc.predict_chunked(model, x)
+    profiles = lulc.cluster_profiles(model, bands, labels, offset=cfg["sentinel"]["boa_offset"])
+
+    geom = io.read_boundary(cfg["paths"]["boundary"], crs).union_all()
+    ratios = {}
+    for name in ("residential", "water"):
+        layer = cfg["proximity"]["layers"][name]["raw"]
+        gdf = proximity.load_clipped(cfg["paths"]["vectors_raw"], layer, geom, crs)
+        inside = (proximity.burn(gdf, grid).reshape(-1) == 1)[valid]
+        ratios[name] = lulc.overlap_ratio(labels, inside, cc["k"])
+    names = lulc.name_clusters(profiles, ratios["residential"], ratios["water"])
+
+    to_code = {cluster: lulc.CLASS_CODES[name] for name, cluster in names.items()}
+    codes = lulc.relabel(lulc.class_raster(labels, valid, grid.shape), to_code)
+    score_table = {lulc.CLASS_CODES[name]: s for name, s in cc["scores"].items()}
+    scores = lulc.reclassify(codes, score_table)
+    io.write_cog(out / "lulc_classes.tif", codes, transform, crs, lulc.CLASS_NODATA)
+    io.write_cog(out / "lulc_score.tif", scores, transform, crs, lulc.SCORE_NODATA)
+    print(f"[phase3] corrected k={cc['k']} full K-Means: {time.perf_counter() - t0:.0f}s")
+
+    for name, cluster in names.items():
+        p = next(p for p in profiles if p["cluster"] == cluster)
+        print(
+            f"[phase3]   {name:10s} cluster {cluster}: {p['share']:.3f} of area, "
+            f"ndvi {p['ndvi']:+.2f} mndwi {p['mndwi']:+.2f}, "
+            f"residential x{ratios['residential'][cluster]:.2f} "
+            f"water x{ratios['water'][cluster]:.2f} -> score {cc['scores'][name]}"
+        )
+
+    # How the corrected scores differ from the original Reclass_ML_LULC.
+    with rasterio.open(original_scores) as src:
+        orig = src.read(1)
+    both = (orig != src.nodata) & (scores != lulc.SCORE_NODATA)
+    change = {}
+    for o in sorted(np.unique(orig[both]).tolist()):
+        sel = both & (orig == o)
+        vals, counts = np.unique(scores[sel], return_counts=True)
+        change[str(o)] = {
+            str(v): round(float(c / sel.sum()), 4) for v, c in zip(vals, counts, strict=True)
+        }
+    same = float(np.mean(orig[both] == scores[both]))
+    print(f"[phase3]   score identical to original on {same:.1%} of pixels")
+    for o, row in change.items():
+        print(f"[phase3]     original score {o} -> corrected {row}")
+    return {
+        "names": names,
+        "profiles": profiles,
+        "residential_ratio": ratios["residential"],
+        "water_ratio": ratios["water"],
+        "score_same_as_original": same,
+        "original_to_corrected": change,
+    }
 
 
 def run_phase3k(cfg: dict) -> list[dict]:

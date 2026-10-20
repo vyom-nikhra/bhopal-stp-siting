@@ -83,6 +83,17 @@ lulc:
   # K-Means class -> suitability score (recovered reclass table). Class 2 was the
   # out-of-boundary void because the original NoData mask never matched.
   reclass: {1: 2, 2: null, 3: 10, 4: 3, 5: 1}
+  # 3b corrected model (chosen 2026-10-20 from the evidence in docs/parity.md, Phase 3):
+  # void masked, k=4, full K-Means with restarts on a fixed 1M-pixel sample.
+  corrected:
+    k: 4
+    n_init: 10
+    random_state: 42
+    fit_size: 1000000
+    sample_seed: 0
+    # Same meanings as the original reclass table (o3 barren 10, o4 built-up 3,
+    # o1 vegetation 2, o5 water/dark 1).
+    scores: {barren: 10, built_up: 3, vegetation: 2, water: 1}
   # 3b: evidence for choosing k on the void-masked stack (see stp.lulc.k_selection)
   k_selection:
     ks: [2, 3, 4, 5, 6, 7, 8]

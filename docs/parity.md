@@ -104,3 +104,25 @@ The elbow curve has no clear bend. k = 4 is best on silhouette, Davies-Bouldin a
 (The original's scores: o3 → 10 (barren), o4 → 3, o1 → 2, o5 → 1, void → NoData.)
 
 Caveat: the scene is from 9 June (pre-monsoon), so the "barren / bare soil" class also contains fallow farmland; spectra from a single date cannot separate the two.
+
+### 3b. The corrected land-cover layer (chosen setup)
+
+Chosen with the user on 2026-10-20 from the evidence above: **void masked, k = 4, full K-Means (`n_init=10`) on a fixed 1 M-pixel sample, applied to all pixels**, scored with the original meanings (barren 10, built-up 3, vegetation 2, water 1). Clusters are named automatically by `stp.lulc.name_clusters`, which raises an error instead of guessing if the evidence is inconsistent:
+
+| Class | Area | NDVI | MNDWI | In OSM residential | In OSM water | Score |
+|---|---|---|---|---|---|---|
+| Water / dark | 8.5% | +0.18 | −0.21 | 0.46× | 9.15× | 1 |
+| Vegetation | 17.8% | +0.53 | −0.43 | 1.43× | 0.70× | 2 |
+| Built-up | 16.4% | +0.15 | −0.25 | 2.43× | 0.04× | 3 |
+| Barren / bare soil | 57.3% | +0.21 | −0.39 | 0.54× | 0.16× | 10 |
+
+Compared with the original `Reclass_ML_LULC`, the score is identical on **79.7%** of pixels:
+
+| Original score → | 1 | 2 | 3 | 10 |
+|---|---|---|---|---|
+| 1 (water/dark) | 99.8% | 0.1% | | 0.1% |
+| 2 (vegetation) | 0.1% | 76.4% | 0.0% | 23.5% |
+| 3 (built-up) | | 1.3% | 59.2% | 39.5% |
+| 10 (barren) | 8.0% | 0.2% | 0.0% | 91.8% |
+
+So the barren class grows (44.7% → 57.3% of the area), mostly taking from the original built-up and vegetation classes. Because the scene is pre-monsoon (9 June), some of this is fallow farmland, which a single date can't separate from true barren land. Phase 5's road-access and score thresholds narrow it down, and the Phase 6 ground-truth check will measure it.
