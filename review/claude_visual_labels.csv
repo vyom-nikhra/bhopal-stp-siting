@@ -1,0 +1,67 @@
+site_id,observed_cover,usable_for_stp,confidence,notes
+S01,scrub,unsure,low,Open patch (vacant ground or old field) in a peri-urban area; houses ~150-250 m away.
+S02,scrub,unsure,low,Dark mixed scrub at the boundary edge with some buildings nearby.
+S03,scrub,unsure,low,Dark low-reflectance ground with sparse vegetation next to housing blocks; dark soil / burn scar / degraded scrub unclear.
+S04,scrub,unsure,low,Dark scrubland ~150 m from an industrial or built complex.
+S05,scrub,unsure,low,Large open area with faint parcel lines and a pond nearby; grassland or fallow.
+S06,farmland,unsure,low,Small plot in a field mosaic beside a stream; looks fallow.
+S07,scrub,unsure,low,"Open land with faint parcel lines, a track and a pond structure; grassland or fallow."
+S08,scrub,unsure,low,Open strip between roads or tracks; settlement ~200 m W and buildings to the E.
+S09,scrub,unsure,low,Rough rocky-looking scrub with bare patches; possibly a hill slope or old quarry.
+S10,bare,unsure,low,Bright bare clearing in a scrub/woodland mosaic; possibly a clearing or quarry.
+S11,scrub,unsure,low,Dark scrubland ~150 m N of large industrial or warehouse buildings.
+S12,scrub,unsure,low,Narrow scrub strip at the boundary edge beside walled compounds.
+S13,scrub,unsure,low,Yellowish mixed scrub and bare ground at the boundary edge; built-up to the NE; possibly eroded land or a quarry.
+S14,bare,unsure,low,Bright bare clearing inside scrub/woodland; quarry / grazing clearing / cleared plot? Check at high resolution.
+S15,scrub,unsure,low,Rocky scrub with footpaths next to a large shed or structure.
+S16,scrub,unsure,low,Brownish open land among peri-urban fields and compounds.
+S17,scrub,unsure,low,16.6 ha open clearing inside scrub woodland; possible forest fringe (forest-land restrictions?).
+S18,bare,unsure,low,Bright bare clearing with a curving track in scrub woodland; quarry or clearing? Check at high resolution.
+S19,scrub,unsure,low,Open scrub/grass in a scrub-woodland mosaic near tracks; forest fringe.
+S20,scrub,yes,low,Open scrub/grassland near woodland; no settlement or fields visible within ~200 m.
+S21,scrub,yes,low,Open patch beside a road or track in scrub; no settlement visible nearby.
+S22,scrub,unsure,low,Open land at the boundary edge north of narrow field strips.
+S23,scrub,unsure,low,Open patch between woodland (W) and a road or track; forest fringe.
+S24,scrub,unsure,low,Rocky scrub with a straight canal or road to the E.
+S25,scrub,unsure,low,Scrub slope at the boundary edge above a road or canal.
+S26,scrub,unsure,low,Rocky scrub patch near a canal.
+S27,scrub,unsure,low,Rocky scrub along the boundary edge.
+S28,low_veg,yes,low,6.6 ha uniform open grassland (likely pasture); tree-lined stream ~100 m N.
+S29,scrub,unsure,low,Open grass patch between scrub woodland; buildings ~200 m N.
+S30,scrub,unsure,low,Small open patch beside a canal or road; large bright structure (possibly a quarry) to the E.
+S31,scrub,unsure,low,Vegetated scrub slope at the boundary edge; structures to the SE.
+S32,scrub,unsure,low,Open grass/scrub with tracks south of a wooded stream strip; built-up ~200 m NW.
+S33,scrub,unsure,low,Rocky scrub mosaic at the boundary edge.
+S34,scrub,unsure,low,Small patch among bright excavated surfaces and pits; possible quarry or brick kiln.
+S35,built,no,medium,Regular parallel rows across the site: a structure (solar array / nursery / brick-drying yard / treatment facility?). Not open land; identify at high resolution.
+S36,scrub,unsure,low,Thin rocky scrub strip at the boundary edge.
+S37,scrub,unsure,low,Open land with tracks; settlement ~100-150 m W.
+S38,scrub,unsure,low,21 ha brown scrub with tracks (likely grazing land); settlement ~200 m SE.
+S39,scrub,unsure,low,Open plot between built-up areas to the N and S.
+S40,scrub,unsure,low,Scrub with a bright bare or built patch adjacent to the SE.
+S41,scrub,unsure,low,19.4 ha sparse scrub with tracks; southern edge touches a bright built or bare area.
+S42,scrub,yes,low,5.8 ha open scrub with tracks; nothing within ~200 m.
+S43,built,no,medium,On the same regular-rows facility as S35 (neighbouring). Not open land.
+S44,low_veg,unsure,low,6.6 ha open grass/scrub south of a wooded stream; settlement ~150-200 m N across the stream.
+S45,scrub,unsure,low,7.6 ha open scrub with tracks; southern edge touches a bright bare or built area.
+S46,scrub,unsure,low,Scrub at the boundary edge north of a road or canal; houses ~50-100 m S across the road.
+S47,scrub,unsure,low,Small scrub patch next to a bright bare area.
+S48,scrub,unsure,low,Small plot at a stream/canal junction at the boundary edge; bright bare ground (possibly a quarry) to the W. Flood risk.
+S49,low_veg,yes,low,5 ha open grassy clearing in scrub woodland with tracks; bare ground ~200 m SE.
+S50,scrub,unsure,low,6.7 ha scrub strip along a wooded stream; riparian. Flood risk.
+S51,scrub,unsure,low,Small patch on a rocky slope; settlement ~150 m NE across a road; dark pit (pond or quarry) to the SE.
+S52,scrub,yes,low,Open scrub with tracks; settlement ~250 m SE.
+S53,scrub,unsure,low,14.4 ha strip of open scrub directly beside a reservoir or stream (not mapped as a lake?). Check flood and water protection.
+S54,scrub,unsure,low,Small vegetated patch at a boundary corner next to a canal.
+S55,scrub,unsure,low,Scrub strip along a canal at a boundary corner; facility (white tank or building) ~150 m NW.
+S56,low_veg,yes,low,5.7 ha open grass/scrub south of a wooded stream; settlement ~250 m NW across the stream.
+S57,scrub,unsure,low,Open plot in a peri-urban mosaic; houses ~50-100 m S.
+S58,scrub,unsure,low,Open land between bright bare or built patches and a field.
+S59,low_veg,yes,low,6.9 ha open grass/scrub south of a wooded stream; settlement ~200 m across the stream.
+S60,scrub,unsure,low,Small strip at the boundary edge between a dark pit (quarry or pond) and a rocky slope.
+S61,scrub,unsure,low,Open strip at the boundary edge beside a large field.
+S62,scrub,unsure,low,Small patch at a woodland edge beside a road; forest fringe.
+S63,low_veg,unsure,low,Part of one large open ground (institutional ground or maidan?) shared with S65; houses ~100-150 m S across a road.
+S64,scrub,yes,low,Small open patch in a scrub/grass mosaic with tracks; nothing nearby.
+S65,low_veg,unsure,low,Same large open ground as S63; houses ~150 m S across a road.
+S66,other,unsure,low,Unusual magenta/green colours in the chip (possible image artefact); check at high resolution.

@@ -2,6 +2,15 @@
 
 Newest entries at the top. Each entry records what was done, what was verified, and what comes next, so a fresh session can resume from here.
 
+## 2026-10-21: Constraints from 12-month Dynamic World (final model revised)
+- Overpass: one of overpass-api.de's two IPv4 addresses (65.109.112.52) is unreachable from this network; `stp.net.prefer_reachable` pins the working one. Python connections to 162.55.144.139 still timed out while curl connected, and a curl query got 406 without a descriptive User-Agent and later timed out too (possible rate limiting). `crosscheck-osm` NOT run; retry later.
+- `stp.dynamic_world`: per-pixel mode / built_pct / water_pct over 2024-06-10..2025-06-10 (141 images), grid-exact downloads (region + crs_transform). City: crops 47.4%, built 32.3%, trees 9.9%, water 5.0%, scrub 3.6%, grass 0.3%, bare 0.2%. The old 44 sites were 84.7% crops / 13.7% built by yearly mode.
+- Final model now has hard constraints before ranking (config model.constraints): yearly mode in {grass, scrub, bare}; settlement = built >= 50% + 100 m; flood proxy = water >= 10%. Eligible = 3.3% of the city. Rule `top_area` = best eligible pixels, as many as 0.3395% of all valid pixels.
+- Result: 66 sites, 233.8 ha (cut 7.446). Sensitivity: 58/66 robust (>= 75%), 51/66 >= 90%. All reach a major road (median 1.9 km). Cross-check: WorldCover 62/66 open land, Esri 35/66, single-scene DW 12/66 -> verdict 35 consistent_open_land / 31 likely_farmland / 0 built.
+- Visual labels (66, `review/claude_visual_labels.csv`): 9 yes, 2 no (S35/S43: regular-rows facility), 55 unsure. Old 44-site labels/sheet archived in review/archive/. Sheet regenerated and sent.
+- Limitation: the water-frequency proxy doesn't catch narrow riverbanks (no sourced riparian setback distance).
+- **Next:** docs write-up (parity.md section on the final model + README), Phase 7 apps, Phase 8 polish.
+
 ## 2026-10-21: Final model built; automated site cross-check
 - Decisions (user, 2026-10-20): AHP weights as main; top-0.3395% threshold; residential distance capped at 100 m (CPHEEO 2013 via CPCB filing); minimum area 12.7 MLD x 0.044 ha/MLD = 5,588 m2 (Package 3 mean plant size; Saxena/SuSanA measured footprints). Config `model:`; `stp.model` specs ("original" for parity, "final" default for Phase 6 commands, `--model`).
 - `python -m stp.cli final`: 44 sites, 294.0 ha (IoU 0.10 with the QGIS 46). Cut 9.464; 5,142 px tie at the cut, so 0.389% selected. Residential cap: 83.2% of pixels score 10, so lake distance (0.333) drives selection.
