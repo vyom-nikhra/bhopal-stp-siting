@@ -32,10 +32,17 @@ def queries(
     suitability_min: float,
     lulc_required: float,
     roads_min: float,
+    tolerance: float = 1e-6,
 ) -> dict[str, np.ndarray]:
-    """Boolean query masks (False where the suitability surface is NoData)."""
+    """Boolean query masks (False where the suitability surface is NoData).
+
+    Scores are integers and the weights multiples of 0.01, so thousands of pixels sum to
+    exactly 8.0; in floating point they land a hair either side of it depending on the
+    order and precision of the arithmetic. `tolerance` makes such exact ties pass
+    deterministically (as they all did in QGIS) instead of by rounding accident.
+    """
     valid = np.isfinite(suitability)
-    q1 = valid & (suitability >= suitability_min)
+    q1 = valid & (suitability >= suitability_min - tolerance)
     q2 = q1 & (lulc_score == lulc_required)
     q3 = q2 & (roads_score >= roads_min)
     return {"query_01": q1, "query_02": q2, "query_03": q3, "valid": valid}
@@ -124,6 +131,7 @@ def sites_from_surface(
         sel["suitability_min"],
         sel["lulc_required"],
         sel["roads_score_min"],
+        sel["threshold_tolerance"],
     )
     polygons = polygonize(q["query_03"], transform, crs, sel["polygonize_connectivity"])
     if len(polygons) == 0:

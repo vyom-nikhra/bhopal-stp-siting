@@ -1,6 +1,7 @@
 """Command-line entry point: `python -m stp.cli <command> [--config config.yaml]`.
 
-Commands: phase1, phase2, phase3, phase3k, phase4, phase5, sensitivity (see `--help`).
+Commands: phase1, phase2, phase3, phase3k, phase4, phase5, sensitivity, sites
+(see `--help`).
 """
 
 from __future__ import annotations
@@ -26,6 +27,7 @@ from stp import (
     sensitivity,
     standardize,
 )
+from stp import sites as site_stats
 from stp.config import DEFAULT_CONFIG, Grid, load_config
 
 # See scripts/diagnose_b11.py and docs/parity.md.
@@ -735,6 +737,79 @@ def run_sensitivity(cfg: dict) -> dict:
     return payload
 
 
+def run_sites(cfg: dict) -> gpd.GeoDataFrame:
+    """Phase 6b: per-site statistics, nearest-feature distances and ranking."""
+    crs = CRS.from_user_input(cfg["crs"])
+    outputs = Path(cfg["paths"]["output"])
+    out = outputs / "phase6"
+    src = out / "sites_sensitivity.parquet"
+    if not src.exists():
+        raise FileNotFoundError(f"{src} missing: run `python -m stp.cli sensitivity` first")
+    s = gpd.read_parquet(src)
+
+    rasters = [
+        (
+            "suit",
+            outputs / "phase4" / "suitability_pipeline_corrected_lulc.tif",
+            ["mean", "min", "max"],
+        ),
+        ("slope_deg", outputs / "phase1" / "slope.tif", ["mean", "max"]),
+        ("elev_m", outputs / "phase1" / "dem.tif", ["mean", "min", "max"]),
+        ("road_dist_m", outputs / "phase2" / "dist_roads.tif", ["min", "mean"]),
+        ("drain_dist_m", outputs / "phase2" / "dist_drainage.tif", ["min"]),
+    ]
+    for prefix, path, stats in rasters:
+        s = site_stats.raster_stats(s, path, stats, prefix)
+    s["elev_range_m"] = s["elev_m_max"] - s["elev_m_min"]
+
+    geom = io.read_boundary(cfg["paths"]["boundary"], crs).union_all()
+    near = {
+        "school": "Schools_Bhopal",
+        "hospital": "Hospital_Bhopal",
+        "lake": cfg["proximity"]["layers"]["water"]["raw"],
+        "residential": cfg["proximity"]["layers"]["residential"]["raw"],
+    }
+    for label, layer in near.items():
+        feats = proximity.load_clipped(cfg["paths"]["vectors_raw"], layer, geom, crs)
+        s = site_stats.nearest_distance(s, feats, f"nearest_{label}_m")
+    # The 500 m buffers are 120-gon approximations of circles, so allow ~1 m below 500.
+    floor = cfg["selection"]["buffer_m"] - 1.0
+    for label in ("school", "hospital"):
+        bad = s[f"nearest_{label}_m"] < floor
+        if bad.any():
+            raise RuntimeError(f"{int(bad.sum())} sites closer than {floor} m to a {label}")
+
+    cent = s.geometry.centroid.to_crs(4326)
+    s["lon"], s["lat"] = cent.x, cent.y
+    ranked = site_stats.rank_sites(s, cfg["sensitivity"]["robust_threshold"])
+
+    ranked.to_parquet(out / "sites_ranked.parquet")
+    ranked.to_crs(4326).to_file(out / "sites_ranked.geojson", driver="GeoJSON")
+    table = ranked.drop(columns="geometry").copy()
+    table["area_ha"] = table["area_sqm"] / 1e4
+    num = table.select_dtypes("number").columns
+    table[num] = table[num].round(4)
+    table.to_csv(out / "sites_ranked.csv", index=False)
+
+    cols = [
+        "rank",
+        "area_ha",
+        "suit_mean",
+        "persistence",
+        "slope_deg_mean",
+        "elev_range_m",
+        "road_dist_m_min",
+        "nearest_school_m",
+        "nearest_hospital_m",
+        "nearest_lake_m",
+    ]
+    print(table[cols].head(15).to_string(index=False, float_format=lambda v: f"{v:.2f}"))
+    robust = int(ranked["robust"].sum())
+    thr = cfg["sensitivity"]["robust_threshold"]
+    print(f"[sites] {len(ranked)} sites, {robust} robust (persistence >= {thr:.0%}) -> {out}")
+    return ranked
+
+
 def main() -> None:
     p = argparse.ArgumentParser(prog="stp")
     p.add_argument("--config", default=str(DEFAULT_CONFIG))
@@ -746,6 +821,7 @@ def main() -> None:
     sub.add_parser("phase4", help="1-10 scores, grid alignment, weighted overlay + parity")
     sub.add_parser("phase5", help="queries, polygons, exclusion buffers, final sites + parity")
     sub.add_parser("sensitivity", help="Phase 6a: weight sensitivity of the corrected result")
+    sub.add_parser("sites", help="Phase 6b: per-site statistics and ranked site table")
     args = p.parse_args()
     cfg = load_config(args.config)
     if args.cmd == "phase1":
@@ -762,6 +838,8 @@ def main() -> None:
         run_phase5(cfg)
     elif args.cmd == "sensitivity":
         run_sensitivity(cfg)
+    elif args.cmd == "sites":
+        run_sites(cfg)
 
 
 if __name__ == "__main__":

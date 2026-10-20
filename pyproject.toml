@@ -19,8 +19,9 @@ markers = ["needs_data: requires the local raw/reference data from config.yaml"]
 # Windows/MKL memory-leak warning; real runs use millions of pixels and many chunks.
 filterwarnings = [
     "ignore:MiniBatchKMeans is known to have a memory leak:UserWarning",
-    # rioxarray 0.23 still uses the `transform * coords` form deprecated in affine 3.
+    # rioxarray 0.23 and rasterstats 0.21 still use `transform * coords` (deprecated in affine 3).
     "ignore:Use `@` matmul instead:PendingDeprecationWarning:rioxarray",
+    "ignore:Use `@` matmul instead:PendingDeprecationWarning:rasterstats",
 ]
 
 [tool.ruff]

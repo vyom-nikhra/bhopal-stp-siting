@@ -75,6 +75,7 @@ def test_sites_from_surface_end_to_end():
         "roads_score_min": 7,
         "polygonize_connectivity": 4,
         "min_area_sqm": 3000,
+        "threshold_tolerance": 1e-6,
     }
     far = Point(0, 0).buffer(1)  # exclusion far away
     q, polys, sites = selection.sites_from_surface(s, lulc, roads, far, sel, TF, UTM)
@@ -84,3 +85,10 @@ def test_sites_from_surface_end_to_end():
     s[:] = 5.0  # nothing selected
     _, polys, sites = selection.sites_from_surface(s, lulc, roads, far, sel, TF, UTM)
     assert len(polys) == 0 and len(sites) == 0
+
+
+def test_queries_exact_tie_passes_regardless_of_rounding():
+    # An exact 8.0 tie nudged by float error either way must pass; a real shortfall must not.
+    s = np.array([8.0, 8.0 - 1e-9, 8.0 + 1e-9, 8.0 - 1e-3])
+    q = selection.queries(s, np.full(4, 10), np.full(4, 9), 8.0, 10, 7)
+    assert q["query_01"].tolist() == [True, True, True, False]

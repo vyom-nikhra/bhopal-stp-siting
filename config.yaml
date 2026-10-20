@@ -142,6 +142,8 @@ weights:  # from the report's Raster Calculator expression (not logged in histor
 
 selection:
   suitability_min: 8.0       # Query 1
+  # Exact ties (score == 8.0: 2,417 px original, 4,740 corrected) pass deterministically
+  threshold_tolerance: 1.0e-6
   lulc_required: 10          # Query 2 (barren)
   roads_score_min: 7         # Query 3
   polygonize_connectivity: 4 # EIGHT_CONNECTEDNESS=False (recovered)
@@ -166,3 +168,5 @@ sensitivity:
   oat_delta: 0.2
   # A site is "persistent" in a draw if at least this share of its pixels is selected.
   persistence_cover: 0.5
+  # Sites persistent in at least this share of draws are flagged robust.
+  robust_threshold: 0.75

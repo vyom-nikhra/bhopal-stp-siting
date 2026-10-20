@@ -2,6 +2,13 @@
 
 Newest entries at the top. Each entry records what was done, what was verified, and what comes next, so a fresh session can resume from here.
 
+## 2026-10-20: Phase 6 parts 2-3 done (sensitivity, ranked table)
+- Found and fixed: ~4,740 pixels score exactly 8.0; float rounding decided whether they pass (another arithmetic path drops 4,005). Threshold now `>= 8 - 1e-6` (`selection.threshold_tolerance`), matching QGIS; Phase 5 parity unchanged.
+- `python -m stp.cli sensitivity` (~5 min): 300 draws -> sites 25-101 (5-95%), median IoU 0.555; 14/59 sites persistent in >= 90% of draws, 20 in >= 75%. Residential weight dominates (+-20% -> 23..105 sites). The fixed >= 8 threshold sits at the top of the 3-8.48 range, hence the fragility.
+- `python -m stp.cli sites`: ranked table (zonal stats, nearest school/hospital/lake/residential, persistence, robust flag) in `outputs/phase6/sites_ranked.*`; all sites >= 499 m from schools/hospitals (checked).
+- 55 unit tests pass; ruff clean.
+- **Next:** Phase 6 part 4 (osmnx network access). Then ask the user about part 1 (AHP pairwise judgements) and part 5 (ground-truth labelling). Raise with the user: the threshold fragility (an option is a relative cut, e.g. top x% of the surface, or ranking by persistence).
+
 ## 2026-10-20: Phase 5 done
 - `python -m stp.cli phase5`: queries, 4-connected polygonize (`rasterio.features.shapes`), ellipsoidal area (`pyproj.Geod`), 500 m school/hospital buffers, difference + area filter. Three variants in `outputs/phase5/<variant>/` (query COGs, `all_polygons.parquet`, `sites.parquet`, `sites.geojson`).
 - **Exact parity:** query rasters identical; 47/47 candidates and 46/46 final sites with 0 m2 symmetric difference.

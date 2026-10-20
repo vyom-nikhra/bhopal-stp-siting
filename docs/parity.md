@@ -185,3 +185,53 @@ Reproduce with `python -m stp.cli phase5` (report: `outputs/parity/phase5.json`)
 | **C (corrected)** | **corrected (Phase 3b)** | difference → filter | 25,694 | **59** | **191.8 ha** |
 
 How C relates to A (`scripts/compare_site_sets.py`): 45 of the 46 original sites still overlap a corrected site and 83.3% of the original site area is still selected; 1 original site (0.56 ha) drops out; 23 corrected sites are entirely new (22.6 ha), and the rest of the gain comes from existing sites growing. So the land-cover correction extends the original result rather than replacing it. The barren class's fallow-farmland caveat (Phase 3b) applies to the added area.
+
+## Phase 6: beyond QGIS
+
+### 6a. Threshold ties (found while building the sensitivity analysis)
+
+**13. Thousands of pixels score exactly 8.0, and floating-point rounding decided them.** All criterion scores are integers and the weights are multiples of 0.01, so 100 × suitability is an exact integer (`scripts/diagnose_threshold_ties.py`):
+
+| Surface | Pixels ≥ 8 (exact) | Exact ties (= 8.0) | Ties passing: float64 → float32 (QGIS-like) | Ties passing: float32 layers, float64 sum |
+|---|---|---|---|---|
+| Original land cover | 17,896 | 2,417 | 2,417 | 200 |
+| Corrected land cover | 27,519 | 4,740 | 4,740 | 735 |
+
+In QGIS every tie happened to round up and pass. A different but equally reasonable arithmetic path drops most of them: 4,005 of 27,519 high-potential pixels (15%) would change. The pipeline now applies the threshold as `score ≥ 8 − 1e−6`, so exact ties pass deterministically, which matches what QGIS did. Phase 5 parity is unchanged. A consistency check caught this: the sensitivity baseline (60 sites) disagreed with Phase 5 (59) until the tolerance was added.
+
+### 6b. Weight sensitivity
+
+`python -m stp.cli sensitivity` (corrected result; 300 Monte Carlo draws, each weight × U(0.8, 1.2) then renormalised; plus one-at-a-time ±20%). Outputs: `outputs/phase6/selection_frequency.tif`, `sites_sensitivity.parquet`, `sensitivity.json`.
+
+**Monte Carlo (300 draws):**
+
+| Measure | Median | 5–95% range |
+|---|---|---|
+| Sites | 54 | 25–101 |
+| Area | 188.0 ha | 83.8–454.6 ha |
+| IoU with the baseline sites | 0.555 | |
+
+Of the 59 baseline sites, 14 are selected (≥ 50% of their area) in ≥ 90% of draws, 20 in ≥ 75%, and 42 in ≥ 50%.
+
+**One at a time (each weight × 0.8 or × 1.2, others rescaled):**
+
+| Criterion | −20%: sites | ha | IoU | +20%: sites | ha | IoU |
+|---|---|---|---|---|---|---|
+| Residential distance | 105 | 568.0 | 0.333 | 23 | 85.7 | 0.407 |
+| Water distance | 75 | 273.9 | 0.682 | 49 | 199.4 | 0.776 |
+| Drainage distance | 60 | 212.0 | 0.618 | 64 | 201.4 | 0.595 |
+| Slope | 43 | 117.8 | 0.614 | 71 | 263.7 | 0.727 |
+| Road distance | 52 | 138.9 | 0.719 | 58 | 230.1 | 0.833 |
+| Land cover | 47 | 124.6 | 0.650 | 64 | 240.5 | 0.797 |
+| DEM | 59 | 162.4 | 0.818 | 45 | 196.8 | 0.897 |
+
+**14. The site set is fragile to the weights, and the fixed "≥ 8" threshold is why.** The suitability surface tops out at 8.48, so the cut sits at the very top of the score range, where small weight changes move thousands of pixels (including the ~4,700 exact ties) across it. The residential-distance weight (0.25) dominates: ±20% swings the result between 23 and 105 sites. The weights were asserted rather than derived (see the AHP item in PLAN.md), so this is the main uncertainty in the final answer. Robustness should be reported alongside every site; the ranked table does this.
+
+### 6c. Ranked site table
+
+`python -m stp.cli sites` → `outputs/phase6/sites_ranked.{parquet,geojson,csv}`. For each of the 59 corrected sites:
+- `rasterstats` zonal statistics: suitability (mean/min/max), slope, elevation range (relevant to gravity flow), distance to the nearest road and drainage line;
+- `geopandas.sjoin_nearest`: distance from the site edge to the nearest school, hospital, lake and residential area. Every site is ≥ 499 m from any school or hospital, which the code checks (the 500 m buffers are 120-gon approximations);
+- the persistence from 6b, a `robust` flag (≥ 75%), and centroid lon/lat.
+
+Sites are ranked by mean suitability, then area. 20 of the 59 are robust.
