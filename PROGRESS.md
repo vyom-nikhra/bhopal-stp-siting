@@ -2,6 +2,13 @@
 
 Newest entries at the top. Each entry records what was done, what was verified, and what comes next, so a fresh session can resume from here.
 
+## 2026-10-20: Phase 3 in progress (3a done, 3b awaiting decision)
+- 3a: the original `kmeans_lulc.py` reproduced 100% in the user's `pytorch` env (sklearn 1.7.2). With sklearn 1.9.1: 98.9% label agreement on the QGIS stack, 73.5% on ours.
+- The gap is K-Means instability (seed alone: 76-99% agreement on the identical stack; `n_iter_ == 1`), not the B11 artefact.
+- 3b evidence: k=4 best (silhouette 0.366, DB 0.879, ARI 0.82); full KMeans(n_init=10) on a 1M sample is stable (ARI 0.957). Clusters validated against OSM residential/water. Details in docs/parity.md.
+- **Waiting on the user:** k and fitting method for the corrected land cover, and the class -> score table (proposed: barren 10, built-up 3, vegetation 2, water 1, as in the original).
+- **Next:** implement the chosen corrected K-Means in `stp.lulc` + `phase3` output, then Phase 4.
+
 ## 2026-10-20: Phase 2 done
 - `python -m stp.cli phase2`: geometry-only reads (pyogrio, `columns=[]`), `gpd.clip`, rasterise on the proximity grid, exact EDT distances, NoData outside the boundary. Writes COGs and GeoParquet (clipped vectors) to `outputs/phase2/`.
 - Parity: clipped vectors identical (counts, length/area, 0 m² symmetric difference); burned pixels identical; distances 99.82–99.97% within 1 cm. The rest are GDAL Proximity overestimates (always QGIS > ours, max 5.72% relative), so the pipeline's values are exact. Details in `docs/parity.md`.

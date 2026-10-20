@@ -59,3 +59,48 @@ Reproduce with `python -m stp.cli phase2` (report: `outputs/parity/phase2.json`)
 ### Finding
 
 **5. GDAL Proximity slightly overestimates distances; the pipeline's are exact.** The pipeline uses `scipy.ndimage.distance_transform_edt`, an exact Euclidean distance transform. GDAL's Proximity uses a faster two-pass scan that approximates the nearest feature. Every one of the 25,844 differing pixels across the four layers has QGIS > ours (none the other way), and the largest relative error is exactly 5.72% in every layer: the fixed worst-case ratio of the approximation, not a data difference. Check: `scripts/diagnose_proximity.py`.
+
+## Phase 3: K-Means land cover
+
+### 3a. Reproducing the original
+
+- **Exact baseline.** The unmodified `kmeans_lulc.py`, run in the user's `pytorch` env (scikit-learn 1.7.2) on the QGIS stack, reproduces `ML_KMeans_LULC_Bhopal.tif` **100%** (all 13.8 M pixels). So that is how the original map was made.
+- **Pipeline env (scikit-learn 1.9.1), same settings** (`python -m stp.cli phase3`), after matching cluster ids with the Hungarian method (`scipy.optimize.linear_sum_assignment`):
+
+| Input | Label agreement | LULC score identical |
+|---|---|---|
+| QGIS stack | 0.9887 | 0.9808 |
+| Pipeline stack (clean B11) | 0.7352 | 0.5515 |
+
+### Finding
+
+**6. The original K-Means map is one of many equally plausible partitions.** Changing only the random seed, on the identical QGIS stack, gives agreement from 0.76 to 0.99 with the original map; on the pipeline stack 0.74 to 0.93 (`scripts/diagnose_kmeans.py`). So the 0.735 above is K-Means instability, not the B11 artefact. In every run `n_iter_ == 1`: MiniBatchKMeans' early-stopping rule halts within its first pass over the 13.8 M pixels. Seed 42 landing at 98.9% on the QGIS stack is luck, not robustness.
+
+### 3b. Evidence for the corrected version (void masked, 8,139,220 pixels)
+
+`python -m stp.cli phase3k` (MiniBatchKMeans fitted on a 1 M-pixel sample, metrics on a separate 20 k sample, 3 seeds):
+
+| k | Silhouette ↑ | Davies-Bouldin ↓ | Seed stability ARI ↑ (min) |
+|---|---|---|---|
+| 2 | 0.309 | 1.191 | 0.48 (0.28) |
+| 3 | 0.327 | 1.058 | 0.82 (0.73) |
+| **4** | **0.366** | **0.879** | **0.82 (0.74)** |
+| 5 | 0.344 | 0.896 | 0.50 (0.35) |
+| 6 | 0.332 | 0.942 | 0.54 (0.49) |
+| 7 | 0.324 | 0.931 | 0.60 (0.50) |
+| 8 | 0.314 | 0.965 | 0.53 (0.50) |
+
+The elbow curve has no clear bend. k = 4 is best on silhouette, Davies-Bouldin and stability; k = 5 (the original) is unstable.
+
+**Full K-Means** (Lloyd, `n_init=10`) at k = 4, fitted on the 1 M sample and applied to all pixels: seed-stability ARI **0.957** (min 0.937); converges in 12–41 iterations. Checked against OSM land use and the original classes (`scripts/diagnose_kmeans_fix.py`):
+
+| Cluster | Area | In OSM residential | In OSM water | Original class overlap | Reading |
+|---|---|---|---|---|---|
+| c1 | 8.5% | 0.46× | 9.15× (78% of water px) | 58% o5, 42% o3 | Water / dark |
+| c2 | 16.4% | 2.43× | 0.04× | 100% o4 | Built-up / bright |
+| c4 | 17.8% | 1.43× | 0.70× | 97% o1 | Vegetation |
+| c3 | 57.3% | 0.54× | 0.16× | 72% o3 | Barren / bare soil |
+
+(The original's scores: o3 → 10 (barren), o4 → 3, o1 → 2, o5 → 1, void → NoData.)
+
+Caveat: the scene is from 9 June (pre-monsoon), so the "barren / bare soil" class also contains fallow farmland; spectra from a single date cannot separate the two.
