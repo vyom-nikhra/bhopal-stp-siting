@@ -20,6 +20,7 @@ from affine import Affine
 from pyproj import Geod
 from rasterio.features import shapes
 from shapely.geometry import shape
+from shapely.geometry.base import BaseGeometry
 
 GEOD = Geod(ellps="WGS84")
 
@@ -78,20 +79,20 @@ def exclusion_zones(
 
 def select_sites(
     candidates: gpd.GeoDataFrame,
-    exclusions: gpd.GeoDataFrame,
+    cut: BaseGeometry,
     min_area: float,
     order: str,
 ) -> gpd.GeoDataFrame:
     """Apply the buffer difference and the minimum-area filter in the given order.
 
-    Returns sites with `area_sqm` (ellipsoidal, after the difference) and, for the QGIS
-    order, `area_sqm_before` (the pre-difference area that the filter actually used).
+    `cut` is the merged exclusion geometry (e.g. `exclusion_zones(...).union_all()`).
+    Returns sites with `area_sqm_before` (ellipsoidal area before the difference) and
+    `area_sqm` (after it). The QGIS order filters on `area_sqm_before`.
     """
     if order not in ("filter_then_difference", "difference_then_filter"):
         raise ValueError(f"Unknown order {order!r}")
     sites = candidates.copy()
-    sites["area_sqm_before"] = ellipsoidal_area(sites)
-    cut = exclusions.union_all()
+    sites["area_sqm_before"] = ellipsoidal_area(sites) if len(sites) else []
     if order == "filter_then_difference":
         sites = sites[np.round(sites["area_sqm_before"]) >= min_area].copy()
         sites["geometry"] = sites.geometry.difference(cut)
@@ -103,3 +104,31 @@ def select_sites(
         sites["area_sqm"] = ellipsoidal_area(sites)
         sites = sites[sites["area_sqm"] >= min_area].copy()
     return sites.reset_index(drop=True)
+
+
+def sites_from_surface(
+    suitability: np.ndarray,
+    lulc_score: np.ndarray,
+    roads_score: np.ndarray,
+    cut: BaseGeometry,
+    sel: dict,
+    transform: Affine,
+    crs,
+    order: str = "difference_then_filter",
+) -> tuple[dict[str, np.ndarray], gpd.GeoDataFrame, gpd.GeoDataFrame]:
+    """The whole Phase 5 chain on aligned arrays: (query masks, all polygons, final sites)."""
+    q = queries(
+        suitability,
+        lulc_score,
+        roads_score,
+        sel["suitability_min"],
+        sel["lulc_required"],
+        sel["roads_score_min"],
+    )
+    polygons = polygonize(q["query_03"], transform, crs, sel["polygonize_connectivity"])
+    if len(polygons) == 0:
+        empty = gpd.GeoDataFrame({"area_sqm": []}, geometry=[], crs=crs)
+        return q, empty, empty
+    polygons["area_sqm"] = ellipsoidal_area(polygons)
+    sites = select_sites(polygons, cut, sel["min_area_sqm"], order)
+    return q, polygons, sites

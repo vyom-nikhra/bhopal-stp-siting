@@ -156,3 +156,13 @@ parity:  # reference numbers the pipeline is checked against
   final_sites: 46
   final_area_sqm: 1254202
   suitability_range: [3.06, 8.48]  # full-resolution read; 3.42 was a 4x-subsampled estimate
+
+sensitivity:
+  # Monte Carlo: each weight x U(1 - delta, 1 + delta), renormalised; full selection rerun.
+  draws: 300
+  delta: 0.2
+  seed: 0
+  # One-at-a-time: each weight x (1 +/- oat_delta), others rescaled proportionally.
+  oat_delta: 0.2
+  # A site is "persistent" in a draw if at least this share of its pixels is selected.
+  persistence_cover: 0.5

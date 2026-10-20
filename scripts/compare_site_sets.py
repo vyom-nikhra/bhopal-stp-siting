@@ -18,15 +18,19 @@ c = gpd.read_parquet(base / "C_corrected_order_corrected_lulc" / "sites.parquet"
 
 ua, uc = a.union_all(), c.union_all()
 kept = ua.intersection(uc).area / ua.area
-print(f"original sites: {len(a)} ({ua.area / 1e4:.1f} ha planar); corrected: {len(c)} "
-      f"({uc.area / 1e4:.1f} ha planar)")
+print(
+    f"original sites: {len(a)} ({ua.area / 1e4:.1f} ha planar); corrected: {len(c)} "
+    f"({uc.area / 1e4:.1f} ha planar)"
+)
 print(f"share of original site area still selected: {kept:.1%}")
 
 a_hit = a.geometry.intersects(uc)
 c_hit = c.geometry.intersects(ua)
 print(f"original sites overlapping a corrected site: {int(a_hit.sum())}/{len(a)}")
-print(f"corrected sites overlapping an original site: {int(c_hit.sum())}/{len(c)}; "
-      f"new sites: {int((~c_hit).sum())} ({c.loc[~c_hit, 'area_sqm'].sum() / 1e4:.1f} ha)")
+print(
+    f"corrected sites overlapping an original site: {int(c_hit.sum())}/{len(c)}; "
+    f"new sites: {int((~c_hit).sum())} ({c.loc[~c_hit, 'area_sqm'].sum() / 1e4:.1f} ha)"
+)
 lost = a.loc[~a_hit]
 if len(lost):
     print(f"original sites dropped entirely: {len(lost)} ({lost['area_sqm'].sum() / 1e4:.2f} ha)")

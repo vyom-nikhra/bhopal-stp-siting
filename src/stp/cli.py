@@ -1,6 +1,6 @@
 """Command-line entry point: `python -m stp.cli <command> [--config config.yaml]`.
 
-Commands: phase1, phase2, phase3, phase3k, phase4, phase5 (see `--help`).
+Commands: phase1, phase2, phase3, phase3k, phase4, phase5, sensitivity (see `--help`).
 """
 
 from __future__ import annotations
@@ -10,11 +10,22 @@ import json
 import time
 from pathlib import Path
 
+import geopandas as gpd
 import numpy as np
 import rasterio
 from rasterio.crs import CRS
 
-from stp import io, lulc, overlay, parity, preprocess, proximity, selection, standardize
+from stp import (
+    io,
+    lulc,
+    overlay,
+    parity,
+    preprocess,
+    proximity,
+    selection,
+    sensitivity,
+    standardize,
+)
 from stp.config import DEFAULT_CONFIG, Grid, load_config
 
 # See scripts/diagnose_b11.py and docs/parity.md.
@@ -507,6 +518,7 @@ def run_phase5(cfg: dict) -> dict:
     ]
     exclusions = selection.exclusion_zones(points, sel["buffer_m"], sel["buffer_segments"])
     print(f"[phase5] exclusion buffers: {[len(p) for p in points]} points -> {len(exclusions)}")
+    cut = exclusions.union_all()
 
     variants = {
         "A_qgis_order_original_lulc": ("original", "filter_then_difference"),
@@ -521,20 +533,17 @@ def run_phase5(cfg: dict) -> dict:
     results, vectors, summary = [], [], {}
     for vname, (lulc_kind, order) in variants.items():
         vout = out / vname
-        q = selection.queries(
+        q, cand, sites = selection.sites_from_surface(
             surfaces[lulc_kind],
             lulc_scores[lulc_kind],
             roads,
-            sel["suitability_min"],
-            sel["lulc_required"],
-            sel["roads_score_min"],
+            cut,
+            sel,
+            grid.transform,
+            crs,
+            order,
         )
-        cand = selection.polygonize(
-            q["query_03"], grid.transform, crs, sel["polygonize_connectivity"]
-        )
-        cand["area_sqm"] = selection.ellipsoidal_area(cand)
         candidates = cand[np.round(cand["area_sqm"]) >= sel["min_area_sqm"]].copy()
-        sites = selection.select_sites(cand, exclusions, sel["min_area_sqm"], order)
 
         for qname in query_files:
             arr = np.where(q["valid"], q[qname].astype("float32"), np.nan).astype("float32")
@@ -587,6 +596,145 @@ def run_phase5(cfg: dict) -> dict:
     return payload
 
 
+def _corrected_inputs(cfg: dict, crs: CRS, grid: Grid):
+    """Aligned score layers (corrected land cover), roads score, and the exclusion cut."""
+    outputs = Path(cfg["paths"]["output"])
+    template = overlay.grid_template(grid)
+
+    def aligned(path: Path) -> np.ndarray:
+        return overlay.align(_read_da(path, crs)[0], template).astype("float32")
+
+    layers = {
+        name: aligned(outputs / "phase4" / f"score_{name}.tif") for name in cfg["standardize"]
+    }
+    layers["lulc"] = aligned(outputs / "phase3" / "lulc_score.tif")
+    geom = io.read_boundary(cfg["paths"]["boundary"], crs).union_all()
+    sel = cfg["selection"]
+    points = [
+        proximity.load_clipped(cfg["paths"]["vectors_raw"], name, geom, crs)
+        for name in sel["exclusion_layers"]
+    ]
+    cut = selection.exclusion_zones(points, sel["buffer_m"], sel["buffer_segments"]).union_all()
+    return layers, cut
+
+
+def run_sensitivity(cfg: dict) -> dict:
+    """Phase 6a: Monte Carlo and one-at-a-time weight sensitivity of the corrected result."""
+    crs = CRS.from_user_input(cfg["crs"])
+    outputs = Path(cfg["paths"]["output"])
+    out = outputs / "phase6"
+    out.mkdir(parents=True, exist_ok=True)
+    grid = Grid.from_config(cfg, "sentinel_10m")
+    sc = cfg["sensitivity"]
+    sel = cfg["selection"]
+    base = cfg["weights"]
+    layers, cut = _corrected_inputs(cfg, crs, grid)
+
+    def select(surface: np.ndarray):
+        return selection.sites_from_surface(
+            surface, layers["lulc"], layers["roads"], cut, sel, grid.transform, crs
+        )[2]
+
+    baseline = sensitivity.run_weights(layers, base, select)
+    phase5 = gpd.read_parquet(
+        outputs / "phase5" / "C_corrected_order_corrected_lulc" / "sites.parquet"
+    )
+    if len(baseline) != len(phase5):
+        raise RuntimeError(f"Baseline has {len(baseline)} sites but Phase 5 C has {len(phase5)}")
+    base_mask = sensitivity.site_mask(baseline, grid.shape, grid.transform)
+    ids = sensitivity.site_ids(baseline, grid.shape, grid.transform)
+    n = len(baseline)
+    print(f"[sensitivity] baseline: {n} sites, {base_mask.sum()} px (matches Phase 5 C)")
+
+    # Monte Carlo
+    rng = np.random.default_rng(sc["seed"])
+    freq = np.zeros(grid.shape, dtype="float32")
+    persistent = np.zeros(n)
+    draws = []
+    t0 = time.perf_counter()
+    for d in range(sc["draws"]):
+        w = sensitivity.perturb_weights(base, sc["delta"], rng)
+        sites = sensitivity.run_weights(layers, w, select)
+        mask = sensitivity.site_mask(sites, grid.shape, grid.transform)
+        freq += mask
+        cover = sensitivity.coverage_by_site(ids, mask, n)
+        persistent += cover >= sc["persistence_cover"]
+        draws.append(
+            {
+                "weights": w,
+                "sites": len(sites),
+                "area_sqm": float(sites["area_sqm"].sum()),
+                "iou_vs_baseline": sensitivity.iou(mask, base_mask),
+            }
+        )
+        if (d + 1) % 50 == 0:
+            rate = (time.perf_counter() - t0) / (d + 1)
+            print(f"[sensitivity] {d + 1}/{sc['draws']} draws ({rate:.1f}s/draw)")
+    freq /= sc["draws"]
+    persistence = persistent / sc["draws"]
+    io.write_cog(out / "selection_frequency.tif", freq, grid.transform, crs, None)
+
+    baseline["persistence"] = persistence
+    baseline["mean_selection_freq"] = [
+        float(freq[ids == i + 1].mean()) if (ids == i + 1).any() else 0.0 for i in range(n)
+    ]
+    baseline.to_parquet(out / "sites_sensitivity.parquet")
+
+    n_sites = np.array([x["sites"] for x in draws])
+    area = np.array([x["area_sqm"] for x in draws]) / 1e4
+    ious = np.array([x["iou_vs_baseline"] for x in draws])
+    print(
+        f"[sensitivity] sites per draw: median {np.median(n_sites):.0f} "
+        f"(5-95%: {np.percentile(n_sites, 5):.0f}-{np.percentile(n_sites, 95):.0f}); "
+        f"area median {np.median(area):.1f} ha (5-95%: {np.percentile(area, 5):.1f}-"
+        f"{np.percentile(area, 95):.1f}); IoU vs baseline median {np.median(ious):.3f}"
+    )
+    for thr in (0.9, 0.75, 0.5):
+        print(
+            f"[sensitivity] sites persistent in >= {thr:.0%} of draws: "
+            f"{int((persistence >= thr).sum())}/{n}"
+        )
+
+    # One-at-a-time
+    oat = []
+    for name in base:
+        for sign in (-1, 1):
+            w = sensitivity.shift_one(base, name, 1 + sign * sc["oat_delta"])
+            sites = sensitivity.run_weights(layers, w, select)
+            mask = sensitivity.site_mask(sites, grid.shape, grid.transform)
+            oat.append(
+                {
+                    "criterion": name,
+                    "change": sign * sc["oat_delta"],
+                    "sites": len(sites),
+                    "area_ha": float(sites["area_sqm"].sum() / 1e4),
+                    "iou_vs_baseline": sensitivity.iou(mask, base_mask),
+                }
+            )
+    print(
+        f"{'criterion':12s} {'-20%: sites':>12s} {'ha':>7s} {'IoU':>6s} "
+        f"{'+20%: sites':>12s} {'ha':>7s} {'IoU':>6s}"
+    )
+    for name in base:
+        lo, hi = [r for r in oat if r["criterion"] == name]
+        print(
+            f"{name:12s} {lo['sites']:12d} {lo['area_ha']:7.1f} {lo['iou_vs_baseline']:6.3f} "
+            f"{hi['sites']:12d} {hi['area_ha']:7.1f} {hi['iou_vs_baseline']:6.3f}"
+        )
+
+    payload = {
+        "config": sc,
+        "baseline_sites": n,
+        "baseline_area_ha": float(baseline["area_sqm"].sum() / 1e4),
+        "monte_carlo": draws,
+        "persistence": persistence.tolist(),
+        "one_at_a_time": oat,
+    }
+    (out / "sensitivity.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    print(f"[sensitivity] -> {out}")
+    return payload
+
+
 def main() -> None:
     p = argparse.ArgumentParser(prog="stp")
     p.add_argument("--config", default=str(DEFAULT_CONFIG))
@@ -597,6 +745,7 @@ def main() -> None:
     sub.add_parser("phase3k", help="k-selection metrics for the corrected K-Means (3b)")
     sub.add_parser("phase4", help="1-10 scores, grid alignment, weighted overlay + parity")
     sub.add_parser("phase5", help="queries, polygons, exclusion buffers, final sites + parity")
+    sub.add_parser("sensitivity", help="Phase 6a: weight sensitivity of the corrected result")
     args = p.parse_args()
     cfg = load_config(args.config)
     if args.cmd == "phase1":
@@ -611,6 +760,8 @@ def main() -> None:
         run_phase4(cfg)
     elif args.cmd == "phase5":
         run_phase5(cfg)
+    elif args.cmd == "sensitivity":
+        run_sensitivity(cfg)
 
 
 if __name__ == "__main__":

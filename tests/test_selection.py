@@ -54,9 +54,33 @@ def test_select_sites_order_matters():
     # 100 m x 60 m site (~6000 m2); a buffer removes 30 m of it -> ~3000 m2 left
     cand = gpd.GeoDataFrame(geometry=[box(740000, 2570000, 740100, 2570060)], crs=UTM)
     excl = gpd.GeoDataFrame(geometry=[box(740070, 2569900, 740300, 2570200)], crs=UTM)
-    qgis = selection.select_sites(cand, excl, 5000, "filter_then_difference")
-    fixed = selection.select_sites(cand, excl, 5000, "difference_then_filter")
+    qgis = selection.select_sites(cand, excl.union_all(), 5000, "filter_then_difference")
+    fixed = selection.select_sites(cand, excl.union_all(), 5000, "difference_then_filter")
     assert len(qgis) == 1 and qgis["area_sqm"].iloc[0] < 5000  # kept despite being too small
     assert len(fixed) == 0
     with pytest.raises(ValueError):
-        selection.select_sites(cand, excl, 5000, "sideways")
+        selection.select_sites(cand, excl.union_all(), 5000, "sideways")
+
+
+def test_sites_from_surface_end_to_end():
+    # 8x8 pixels of 10 m: a 6x6 block scores 9 (barren, good roads) = 3600 m2 < 5000,
+    # so with min area 3000 it survives and with 5000 it does not.
+    s = np.full((8, 8), 5.0)
+    s[1:7, 1:7] = 9.0
+    lulc = np.full((8, 8), 10.0)
+    roads = np.full((8, 8), 8.0)
+    sel = {
+        "suitability_min": 8.0,
+        "lulc_required": 10,
+        "roads_score_min": 7,
+        "polygonize_connectivity": 4,
+        "min_area_sqm": 3000,
+    }
+    far = Point(0, 0).buffer(1)  # exclusion far away
+    q, polys, sites = selection.sites_from_surface(s, lulc, roads, far, sel, TF, UTM)
+    assert q["query_03"].sum() == 36 and len(polys) == 1 and len(sites) == 1
+    sel["min_area_sqm"] = 5000
+    assert len(selection.sites_from_surface(s, lulc, roads, far, sel, TF, UTM)[2]) == 0
+    s[:] = 5.0  # nothing selected
+    _, polys, sites = selection.sites_from_surface(s, lulc, roads, far, sel, TF, UTM)
+    assert len(polys) == 0 and len(sites) == 0
