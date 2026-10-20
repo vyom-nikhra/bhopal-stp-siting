@@ -7,4 +7,6 @@ Newest entries at the top. Each entry records what was done, what was verified, 
 - Recovered the QGIS parameters from `user-history.db` (63 runs) and from inspecting the rasters; see `docs/qgis_workflow.md`.
 - Verified reference numbers: 46 final sites / 1,254,202 m²; suitability range 3.42–8.48.
 - **Next:** build the conda env (`conda env create -f environment.yml`), check imports, then start Phase 1.
-- **Open questions:** the source and licence of `Planning_Boundary_2031.geojson` (needed for the public README); the slope scoring rule (Phase 4).
+- Repo published: https://github.com/vyom-nikhra/bhopal-stp-siting (public).
+- Planning boundary source: DataMeet Municipal_Spatial_Data, CC BY 4.0 (attributed in the README).
+- **Open question:** the slope scoring rule (Phase 4).

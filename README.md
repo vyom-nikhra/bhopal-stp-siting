@@ -25,6 +25,6 @@ Then edit the data paths in `config.yaml`.
 - Sentinel-2 MSI L2A, tile T43QGF, 9 June 2025: [Copernicus Data Space Ecosystem](https://dataspace.copernicus.eu/)
 - ALOS PALSAR RTC DEM (AP_04940_FBS_F0450_RT1): [ASF DAAC](https://search.asf.alaska.edu/)
 - Roads, water, drainage, land use, schools, hospitals: © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright) (ODbL)
-- Planning boundary 2031: _source to be documented_
+- Planning boundary 2031: [Bhopal Planning Boundary 2031](https://github.com/datameet/Municipal_Spatial_Data/blob/master/Bhopal/Planning_%20Boundary_%202031.geojson) by [DataMeet India community](http://datameet.org/) ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/))
 
 Data is not included in this repo.
