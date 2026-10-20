@@ -5,6 +5,7 @@ dependencies:
   - python=3.12
   # raster
   - gdal
+  - libgdal-jp2openjpeg  # JPEG 2000 driver for the Sentinel-2 .jp2 bands (separate on conda-forge)
   - rasterio
   - rioxarray
   - xarray
