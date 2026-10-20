@@ -25,6 +25,13 @@ sentinel:
   # Stack order (recovered from Sentinel_Stack.vrt): band index -> Sentinel-2 band
   bands: ["B02", "B03", "B04", "B08", "B11"]
   b11_resampling: "nearest"  # 20 m -> 10 m in the VRT (RESAMPLING=0, recovered)
+  # Processing baseline N0511 stores reflectance as (DN + BOA_ADD_OFFSET) / 10000 (MTD_MSIL2A.xml).
+  boa_offset: -1000
+
+indices:
+  # QGIS used raw DN (verified: NDBI matches raw DN to 1.5e-8, differs by up to 0.30 with the
+  # offset). The pipeline applies the offset; the parity check recomputes without it.
+  apply_boa_offset: true
 
 # The three grids the QGIS outputs live on (recovered from reference rasters).
 grids:
