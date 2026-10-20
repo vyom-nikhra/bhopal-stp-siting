@@ -57,12 +57,24 @@ slope:
   units: "degrees"
 
 proximity:
-  # Rasterise each layer (burn=1) on proximity_10m, then distance in georeferenced units (recovered)
+  # Clip -> rasterise (burn=1) on proximity_10m -> distance in metres -> NoData outside (recovered)
   layers:
-    roads: "Roads_Bhopal"
-    drainage: "Natural_Drainage_Bhopal"
-    residential: "Landuse_Residential_Bhopal"
-    water: "Natural_Water_Bhopal"
+    roads:
+      raw: "Roads_Bhopal"
+      qgis_clip: "Roads_Bhopal_Clipped"
+      reference: "Raster_05_Dist_Roads_Clipped.tif"
+    drainage:
+      raw: "Natural_Drainage_Bhopal"
+      qgis_clip: "Natural_Drainage_Clipped"
+      reference: "Raster_06_Dist_Drainage_Clipped.tif"
+    residential:
+      raw: "Landuse_Residential_Bhopal"
+      qgis_clip: "Landuse_Residential_Bhopal_Clipped"
+      reference: "Raster_07_Dist_Residential_Clipped.tif"
+    water:
+      raw: "Natural_Water_Bhopal"
+      qgis_clip: "Lakes_Bhopal_Clipped"
+      reference: "Raster_08_Dist_Water_Clipped.tif"
 
 lulc:
   n_clusters: 5

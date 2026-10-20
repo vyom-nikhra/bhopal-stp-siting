@@ -1,4 +1,4 @@
-"""Command-line entry point: `python -m stp.cli phase1 [--config config.yaml]`."""
+"""Command-line entry point: `python -m stp.cli <phase1|phase2> [--config config.yaml]`."""
 
 from __future__ import annotations
 
@@ -8,10 +8,11 @@ import time
 from pathlib import Path
 
 import numpy as np
+import rasterio
 from rasterio.crs import CRS
 
-from stp import io, parity, preprocess
-from stp.config import DEFAULT_CONFIG, load_config
+from stp import io, parity, preprocess, proximity
+from stp.config import DEFAULT_CONFIG, Grid, load_config
 
 # See scripts/diagnose_b11.py and docs/parity.md.
 B11_NOTE = "QGIS run took the adjacent 20 m row for 28% of pixels; GDAL 3.13 replay = ours"
@@ -111,15 +112,81 @@ def run_phase1(cfg: dict) -> list[parity.ParityResult]:
     return results
 
 
+def run_phase2(cfg: dict) -> list[parity.ParityResult]:
+    crs = CRS.from_user_input(cfg["crs"])
+    out = Path(cfg["paths"]["output"]) / "phase2"
+    ref = Path(cfg["paths"]["reference_rasters"])
+    grid = Grid.from_config(cfg, "proximity_10m")
+    geom = io.read_boundary(cfg["paths"]["boundary"], crs).union_all()
+    inside = ~preprocess.outside_mask(geom, grid.shape, grid.transform)
+
+    (out / "vectors").mkdir(parents=True, exist_ok=True)
+
+    results, vector_checks = [], []
+    for name, layer in cfg["proximity"]["layers"].items():
+        t0 = time.perf_counter()
+        gdf = proximity.load_clipped(cfg["paths"]["vectors_raw"], layer["raw"], geom, crs)
+        gdf.to_parquet(out / "vectors" / f"{name}.parquet")
+        dist, target = proximity.distance_raster(gdf, grid, geom)
+        io.write_cog(out / f"dist_{name}.tif", dist, grid.transform, crs, proximity.DIST_NODATA)
+        elapsed = time.perf_counter() - t0
+        print(
+            f"[phase2] {name}: {len(gdf)} features, {int(target.sum())} target px ({elapsed:.1f}s)"
+        )
+
+        vector_checks.append(
+            parity.compare_vectors(
+                name, gdf, Path(cfg["paths"]["reference_vectors"]) / f"{layer['qgis_clip']}.shp"
+            )
+        )
+        # Burned pixels vs QGIS: distance == 0 inside the boundary.
+        with rasterio.open(ref / layer["reference"]) as src:
+            ref_zero = (src.read(1) == 0) & inside
+        burned = (target == 1) & inside
+        agree = float(np.mean(burned[inside] == ref_zero[inside]))
+        print(
+            f"[phase2] {name}: burned-pixel agreement {agree:.6f} "
+            f"(ours {int(burned.sum())}, QGIS {int(ref_zero.sum())})"
+        )
+        results.append(
+            parity.compare(
+                f"dist_{name}",
+                dist,
+                grid.transform,
+                proximity.DIST_NODATA,
+                ref / layer["reference"],
+                tol=1e-2,
+            )
+        )
+
+    print(f"{'vector':12s} {'n_ours':>7s} {'n_qgis':>7s} {'measure':>7s} {'rel_diff':>10s}")
+    for v in vector_checks:
+        extra = f"  sym_diff_area={v['sym_diff_area']:.1f} m2" if "sym_diff_area" in v else ""
+        print(
+            f"{v['name']:12s} {v['n_ours']:7d} {v['n_ref']:7d} {v['measure']:>7s} "
+            f"{v['rel_diff']:10.2e}{extra}"
+        )
+    report = Path(cfg["paths"]["output"]) / "parity" / "phase2.json"
+    report.parent.mkdir(parents=True, exist_ok=True)
+    payload = {"rasters": [r.as_dict() for r in results], "vectors": vector_checks}
+    report.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    print(parity.format_table(results))
+    print(f"[phase2] parity report -> {report}")
+    return results
+
+
 def main() -> None:
     p = argparse.ArgumentParser(prog="stp")
     p.add_argument("--config", default=str(DEFAULT_CONFIG))
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("phase1", help="band stack, DEM, slope, indices + parity")
+    sub.add_parser("phase2", help="distance rasters + parity")
     args = p.parse_args()
     cfg = load_config(args.config)
     if args.cmd == "phase1":
         run_phase1(cfg)
+    elif args.cmd == "phase2":
+        run_phase2(cfg)
 
 
 if __name__ == "__main__":

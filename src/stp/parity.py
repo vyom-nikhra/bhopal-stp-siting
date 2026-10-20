@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+import geopandas as gpd
 import numpy as np
 import rasterio
 from affine import Affine
@@ -111,6 +112,33 @@ def compare(
         tol=tol,
         note=note,
     )
+
+
+def compare_vectors(name: str, ours: gpd.GeoDataFrame, ref_path: str | Path) -> dict:
+    """Feature count and total length/area of `ours` vs a reference vector file.
+
+    For polygons, also the area of the symmetric difference (where coverage differs).
+    """
+    ref = gpd.read_file(ref_path, engine="pyogrio", columns=[])
+    if ref.crs != ours.crs:
+        ref = ref.to_crs(ours.crs)
+    polygonal = bool(ours.geom_type.isin(["Polygon", "MultiPolygon"]).all())
+    measure = "area" if polygonal else "length"
+    m_ours = float(getattr(ours.geometry, measure).sum())
+    m_ref = float(getattr(ref.geometry, measure).sum())
+    out = {
+        "name": name,
+        "reference": Path(ref_path).name,
+        "n_ours": len(ours),
+        "n_ref": len(ref),
+        "measure": measure,
+        "total_ours": m_ours,
+        "total_ref": m_ref,
+        "rel_diff": (m_ours - m_ref) / m_ref,
+    }
+    if polygonal:
+        out["sym_diff_area"] = float(ours.union_all().symmetric_difference(ref.union_all()).area)
+    return out
 
 
 def format_table(results: list[ParityResult]) -> str:
