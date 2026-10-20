@@ -1,4 +1,7 @@
-"""Command-line entry point: `python -m stp.cli <phase1|phase2> [--config config.yaml]`."""
+"""Command-line entry point: `python -m stp.cli <command> [--config config.yaml]`.
+
+Commands: phase1, phase2, phase3, phase3k (see `--help`).
+"""
 
 from __future__ import annotations
 
@@ -11,7 +14,7 @@ import numpy as np
 import rasterio
 from rasterio.crs import CRS
 
-from stp import io, parity, preprocess, proximity
+from stp import io, lulc, parity, preprocess, proximity
 from stp.config import DEFAULT_CONFIG, Grid, load_config
 
 # See scripts/diagnose_b11.py and docs/parity.md.
@@ -175,18 +178,150 @@ def run_phase2(cfg: dict) -> list[parity.ParityResult]:
     return results
 
 
+def run_phase3(cfg: dict) -> dict:
+    """3a: reproduce the original K-Means (void included) on both stacks and compare."""
+    crs = CRS.from_user_input(cfg["crs"])
+    out = Path(cfg["paths"]["output"]) / "phase3"
+    ref = Path(cfg["paths"]["reference_rasters"])
+    lc = cfg["lulc"]
+    table = {int(k): v for k, v in lc["reclass"].items()}
+    ours_stack = Path(cfg["paths"]["output"]) / "phase1" / "sentinel_stack.tif"
+    if not ours_stack.exists():
+        raise FileNotFoundError(f"{ours_stack} missing: run `python -m stp.cli phase1` first")
+    inputs = {"qgis_stack": ref / "Raster_01_Sentinel_Bhopal_Clipped.tif", "our_stack": ours_stack}
+
+    with rasterio.open(ref / "ML_KMeans_LULC_Bhopal.tif") as src:
+        ref_classes = src.read(1)
+
+    summary, results = {}, []
+    for name, path in inputs.items():
+        with rasterio.open(path) as src:
+            stack, transform = src.read(), src.transform
+        t0 = time.perf_counter()
+        x, valid = lulc.pixel_table(stack, mask_void=False)
+        model = lulc.fit_kmeans(x, lc["n_clusters"], lc["random_state"], lc["batch_size"])
+        classes = lulc.class_raster(model.labels_, valid, stack.shape[1:])
+        match = lulc.match_classes(classes, ref_classes)
+        matched = lulc.relabel(classes, match["mapping"])
+        scores = lulc.reclassify(matched, table)
+        io.write_cog(
+            out / f"kmeans_original_{name}.tif", matched, transform, crs, lulc.CLASS_NODATA
+        )
+        io.write_cog(
+            out / f"lulc_score_original_{name}.tif", scores, transform, crs, lulc.SCORE_NODATA
+        )
+        elapsed = time.perf_counter() - t0
+        print(
+            f"[phase3] {name}: k={lc['n_clusters']} void included, {elapsed:.1f}s; "
+            f"mapping ours->ref {match['mapping']}; agreement {match['agreement']:.6f}"
+        )
+        summary[name] = match
+        results.append(
+            parity.compare(
+                f"lulc_score_{name}",
+                scores,
+                transform,
+                lulc.SCORE_NODATA,
+                ref / "Reclass_ML_LULC.tif",
+                tol=0,
+            )
+        )
+
+    report = Path(cfg["paths"]["output"]) / "parity" / "phase3.json"
+    report.parent.mkdir(parents=True, exist_ok=True)
+    payload = {"kmeans": summary, "rasters": [r.as_dict() for r in results]}
+    report.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    print(parity.format_table(results))
+    print(f"[phase3] parity report -> {report}")
+    return payload
+
+
+def run_phase3k(cfg: dict) -> list[dict]:
+    """3b evidence: k-selection metrics and cluster profiles on the void-masked stack."""
+    out = Path(cfg["paths"]["output"]) / "phase3"
+    out.mkdir(parents=True, exist_ok=True)
+    stack_path = Path(cfg["paths"]["output"]) / "phase1" / "sentinel_stack.tif"
+    if not stack_path.exists():
+        raise FileNotFoundError(f"{stack_path} missing: run `python -m stp.cli phase1` first")
+    sel = cfg["lulc"]["k_selection"]
+    bands = cfg["sentinel"]["bands"]
+
+    with rasterio.open(stack_path) as src:
+        stack = src.read()
+    x, valid = lulc.pixel_table(stack, mask_void=True)
+    print(f"[phase3k] {len(x)} valid pixels ({valid.mean():.1%} of the grid)")
+
+    t0 = time.perf_counter()
+    rows = lulc.k_selection(x, sel["ks"], sel["seeds"], sel["fit_size"], sel["eval_size"])
+    print(f"[phase3k] metrics in {time.perf_counter() - t0:.0f}s")
+    print(f"{'k':>3s} {'inertia':>12s} {'silhouette':>13s} {'DB':>6s} {'ARI':>7s} {'ARImin':>7s}")
+    for r in rows:
+        print(
+            f"{r['k']:3d} {r['inertia']:12.4e} {r['silhouette']:7.4f}+-{r['silhouette_sd']:.3f} "
+            f"{r['davies_bouldin']:6.3f} {r['stability_ari']:7.4f} {r['stability_ari_min']:7.4f}"
+        )
+
+    # Cluster profiles per k (same fit sample, first seed) to help name the clusters.
+    rng = np.random.default_rng(0)
+    fit_idx = rng.choice(len(x), size=min(sel["fit_size"], len(x)), replace=False)
+    x_fit = x[fit_idx].astype("float64")
+    profiles = {}
+    for k in sel["ks"]:
+        model = lulc.fit_kmeans(x_fit, k, random_state=sel["seeds"][0])
+        profiles[k] = lulc.cluster_profiles(
+            model, bands, model.labels_, offset=cfg["sentinel"]["boa_offset"]
+        )
+
+    _plot_k_selection(rows, out / "k_selection.png")
+    payload = {"metrics": rows, "profiles": profiles, "n_pixels": int(len(x)), "config": sel}
+    (out / "k_selection.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    print(f"[phase3k] -> {out / 'k_selection.json'}, {out / 'k_selection.png'}")
+    return rows
+
+
+def _plot_k_selection(rows: list[dict], path: Path) -> None:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    ks = [r["k"] for r in rows]
+    panels = [
+        ("inertia", "Inertia (elbow)", "lower = tighter clusters"),
+        ("silhouette", "Silhouette", "higher is better"),
+        ("davies_bouldin", "Davies-Bouldin", "lower is better"),
+        ("stability_ari", "Seed stability (ARI)", "1 = same partition every seed"),
+    ]
+    fig, axes = plt.subplots(1, 4, figsize=(16, 3.6))
+    for ax, (key, title, sub) in zip(axes, panels, strict=True):
+        ax.plot(ks, [r[key] for r in rows], marker="o")
+        ax.set_title(f"{title}\n({sub})", fontsize=10)
+        ax.set_xlabel("k")
+        ax.set_xticks(ks)
+        ax.grid(alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(path, dpi=120)
+    plt.close(fig)
+
+
 def main() -> None:
     p = argparse.ArgumentParser(prog="stp")
     p.add_argument("--config", default=str(DEFAULT_CONFIG))
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("phase1", help="band stack, DEM, slope, indices + parity")
     sub.add_parser("phase2", help="distance rasters + parity")
+    sub.add_parser("phase3", help="original K-Means land cover (3a) + parity")
+    sub.add_parser("phase3k", help="k-selection metrics for the corrected K-Means (3b)")
     args = p.parse_args()
     cfg = load_config(args.config)
     if args.cmd == "phase1":
         run_phase1(cfg)
     elif args.cmd == "phase2":
         run_phase2(cfg)
+    elif args.cmd == "phase3":
+        run_phase3(cfg)
+    elif args.cmd == "phase3k":
+        run_phase3k(cfg)
 
 
 if __name__ == "__main__":

@@ -83,6 +83,12 @@ lulc:
   # K-Means class -> suitability score (recovered reclass table). Class 2 was the
   # out-of-boundary void because the original NoData mask never matched.
   reclass: {1: 2, 2: null, 3: 10, 4: 3, 5: 1}
+  # 3b: evidence for choosing k on the void-masked stack (see stp.lulc.k_selection)
+  k_selection:
+    ks: [2, 3, 4, 5, 6, 7, 8]
+    seeds: [42, 0, 1]
+    fit_size: 1000000
+    eval_size: 20000
 
 standardize:
   # r.rescale to 1..10 over each layer's own min..max (recovered); "invert" = 11 - x
