@@ -196,3 +196,22 @@ ahp:
   evaluate_rules:
     - {kind: fixed, value: 8}
     - {kind: top_pct, pct: 0.3395}
+
+model:
+  # The FINAL model, decided with the author on 2026-10-20 (`--model final`, the default
+  # for the Phase 6 commands). Phases 1-5 keep the original QGIS setup for parity.
+  weights: ahp                     # from ahp_judgements.yaml (approved)
+  threshold: {kind: top_pct, pct: 0.3395}
+  # Residential distance is scored only up to this separation, flat beyond. 100 m is the
+  # CPHEEO Manual on Sewerage and Sewage Treatment Systems (2013, Part A, ch. 5) odour
+  # buffer for plants without deodorisation, as quoted in a CPCB reply to the NGT.
+  residential_cap_m: 100
+  # Minimum site area = mean plant capacity x land per MLD.
+  # 12.7 MLD: mean of the six AMRUT 2.0 Package 3 plants (32, 14, 13, 10, 6, 1 MLD;
+  #   Indian Infrastructure, 2025-01-27).
+  # 0.044 ha/MLD: MBR 4.5 MLD on 2,000 m2 (Delhi), the largest of three measured Indian
+  #   plants (SBR 3 MLD on 700 m2 = 0.023; MBBR 1 MLD on 400 m2 = 0.040); Saxena,
+  #   "Assessment of latest technological solutions in wastewater treatment", SuSanA.
+  #   Upper end chosen for margin (sludge handling, expansion). -> 0.56 ha (5,588 m2).
+  plant_capacity_mld: 12.7
+  land_ha_per_mld: 0.044

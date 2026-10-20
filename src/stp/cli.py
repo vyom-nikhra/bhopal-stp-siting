@@ -1,7 +1,7 @@
 """Command-line entry point: `python -m stp.cli <command> [--config config.yaml]`.
 
 Commands: phase1, phase2, phase3, phase3k, phase4, phase5, sensitivity, sites, network,
-threshold, ahp, review
+threshold, ahp, review, final
 (see `--help`).
 """
 
@@ -20,6 +20,7 @@ from rasterio.crs import CRS
 from stp import (
     io,
     lulc,
+    model,
     network,
     overlay,
     parity,
@@ -601,54 +602,43 @@ def run_phase5(cfg: dict) -> dict:
 
 
 def _corrected_inputs(cfg: dict, crs: CRS, grid: Grid):
-    """Aligned score layers (corrected land cover), roads score, and the exclusion cut."""
-    outputs = Path(cfg["paths"]["output"])
-    template = overlay.grid_template(grid)
-
-    def aligned(path: Path) -> np.ndarray:
-        return overlay.align(_read_da(path, crs)[0], template).astype("float32")
-
-    layers = {
-        name: aligned(outputs / "phase4" / f"score_{name}.tif") for name in cfg["standardize"]
-    }
-    layers["lulc"] = aligned(outputs / "phase3" / "lulc_score.tif")
-    geom = io.read_boundary(cfg["paths"]["boundary"], crs).union_all()
-    sel = cfg["selection"]
-    points = [
-        proximity.load_clipped(cfg["paths"]["vectors_raw"], name, geom, crs)
-        for name in sel["exclusion_layers"]
-    ]
-    cut = selection.exclusion_zones(points, sel["buffer_m"], sel["buffer_segments"]).union_all()
-    return layers, cut
+    """Aligned score layers (corrected land cover, original setup) and the exclusion cut."""
+    return model.build_inputs(cfg, crs, grid, model.get_spec(cfg, "original"))
 
 
-def run_sensitivity(cfg: dict) -> dict:
-    """Phase 6a: Monte Carlo and one-at-a-time weight sensitivity of the corrected result."""
+def run_sensitivity(cfg: dict, model_name: str = "final") -> dict:
+    """Phase 6a: Monte Carlo and one-at-a-time weight sensitivity of a model's result."""
     crs = CRS.from_user_input(cfg["crs"])
     outputs = Path(cfg["paths"]["output"])
-    out = outputs / "phase6"
+    spec = model.get_spec(cfg, model_name)
+    out = outputs / spec.out_dir
     out.mkdir(parents=True, exist_ok=True)
     grid = Grid.from_config(cfg, "sentinel_10m")
     sc = cfg["sensitivity"]
-    sel = cfg["selection"]
-    base = cfg["weights"]
-    layers, cut = _corrected_inputs(cfg, crs, grid)
-
-    def select(surface: np.ndarray):
-        return selection.sites_from_surface(
-            surface, layers["lulc"], layers["roads"], cut, sel, grid.transform, crs
-        )[2]
+    base = spec.weights
+    layers, cut = model.build_inputs(cfg, crs, grid, spec)
+    select = model.make_selector(layers, cut, cfg, grid, crs, spec)
 
     baseline = sensitivity.run_weights(layers, base, select)
-    phase5 = gpd.read_parquet(
+    reference = (
         outputs / "phase5" / "C_corrected_order_corrected_lulc" / "sites.parquet"
+        if spec.name == "original"
+        else outputs / "final" / "sites.parquet"
     )
-    if len(baseline) != len(phase5):
-        raise RuntimeError(f"Baseline has {len(baseline)} sites but Phase 5 C has {len(phase5)}")
+    if not reference.exists():
+        raise FileNotFoundError(f"{reference} missing: run `python -m stp.cli final` first")
+    expected = gpd.read_parquet(reference)
+    if len(baseline) != len(expected):
+        raise RuntimeError(
+            f"Baseline has {len(baseline)} sites but {reference} has {len(expected)}"
+        )
     base_mask = sensitivity.site_mask(baseline, grid.shape, grid.transform)
     ids = sensitivity.site_ids(baseline, grid.shape, grid.transform)
     n = len(baseline)
-    print(f"[sensitivity] baseline: {n} sites, {base_mask.sum()} px (matches Phase 5 C)")
+    print(
+        f"[sensitivity] {spec.name} baseline: {n} sites, {base_mask.sum()} px "
+        f"(matches {reference.name})"
+    )
 
     # Monte Carlo
     rng = np.random.default_rng(sc["seed"])
@@ -739,22 +729,24 @@ def run_sensitivity(cfg: dict) -> dict:
     return payload
 
 
-def run_sites(cfg: dict) -> gpd.GeoDataFrame:
+def run_sites(cfg: dict, model_name: str = "final") -> gpd.GeoDataFrame:
     """Phase 6b: per-site statistics, nearest-feature distances and ranking."""
     crs = CRS.from_user_input(cfg["crs"])
     outputs = Path(cfg["paths"]["output"])
-    out = outputs / "phase6"
+    spec = model.get_spec(cfg, model_name)
+    out = outputs / spec.out_dir
+    suit_path = (
+        outputs / "phase4" / "suitability_pipeline_corrected_lulc.tif"
+        if spec.name == "original"
+        else outputs / "final" / "suitability.tif"
+    )
     src = out / "sites_sensitivity.parquet"
     if not src.exists():
         raise FileNotFoundError(f"{src} missing: run `python -m stp.cli sensitivity` first")
     s = gpd.read_parquet(src)
 
     rasters = [
-        (
-            "suit",
-            outputs / "phase4" / "suitability_pipeline_corrected_lulc.tif",
-            ["mean", "min", "max"],
-        ),
+        ("suit", suit_path, ["mean", "min", "max"]),
         ("slope_deg", outputs / "phase1" / "slope.tif", ["mean", "max"]),
         ("elev_m", outputs / "phase1" / "dem.tif", ["mean", "min", "max"]),
         ("road_dist_m", outputs / "phase2" / "dist_roads.tif", ["min", "mean"]),
@@ -818,11 +810,11 @@ def _write_site_table(ranked: gpd.GeoDataFrame, out: Path) -> None:
     table.to_csv(out / "sites_ranked.csv", index=False)
 
 
-def run_network(cfg: dict) -> gpd.GeoDataFrame:
+def run_network(cfg: dict, model_name: str = "final") -> gpd.GeoDataFrame:
     """Phase 6d: drivable-network access from each site to the nearest major road."""
     crs = CRS.from_user_input(cfg["crs"])
     outputs = Path(cfg["paths"]["output"])
-    out = outputs / "phase6"
+    out = outputs / model.get_spec(cfg, model_name).out_dir
     nc = cfg["network"]
     src = out / "sites_ranked.parquet"
     if not src.exists():
@@ -832,7 +824,9 @@ def run_network(cfg: dict) -> gpd.GeoDataFrame:
     boundary = io.read_boundary(cfg["paths"]["boundary"], crs)
     area = boundary.buffer(nc["boundary_buffer_m"]).to_crs(4326).union_all()
     t0 = time.perf_counter()
-    g = network.load_drive_graph(area, out / "drive_network.graphml", outputs / "cache", crs)
+    g = network.load_drive_graph(
+        area, outputs / "phase6" / "drive_network.graphml", outputs / "cache", crs
+    )
     print(
         f"[network] graph: {g.number_of_nodes()} nodes, {g.number_of_edges()} edges "
         f"({time.perf_counter() - t0:.0f}s)"
@@ -866,6 +860,12 @@ def run_network(cfg: dict) -> gpd.GeoDataFrame:
 def main() -> None:
     p = argparse.ArgumentParser(prog="stp")
     p.add_argument("--config", default=str(DEFAULT_CONFIG))
+    p.add_argument(
+        "--model",
+        choices=["final", "original"],
+        default="final",
+        help="model setup for sensitivity/sites/network/review (default: final)",
+    )
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("phase1", help="band stack, DEM, slope, indices + parity")
     sub.add_parser("phase2", help="distance rasters + parity")
@@ -879,6 +879,7 @@ def main() -> None:
     sub.add_parser("threshold", help="Phase 6e: compare suitability threshold rules")
     sub.add_parser("ahp", help="Phase 6c: AHP weights, consistency, questionnaire, effect")
     sub.add_parser("review", help="Site-check sheet (CSV with map links + KML outlines)")
+    sub.add_parser("final", help="The final model: AHP, top-%, capped residential, plant area")
     args = p.parse_args()
     cfg = load_config(args.config)
     if args.cmd == "phase1":
@@ -894,19 +895,22 @@ def main() -> None:
     elif args.cmd == "phase5":
         run_phase5(cfg)
     elif args.cmd == "sensitivity":
-        run_sensitivity(cfg)
+        run_sensitivity(cfg, args.model)
     elif args.cmd == "sites":
-        run_sites(cfg)
+        run_sites(cfg, args.model)
     elif args.cmd == "network":
-        run_network(cfg)
-    elif args.cmd in ("threshold", "ahp", "review"):
+        run_network(cfg, args.model)
+    elif args.cmd in ("threshold", "ahp", "review", "final"):
         from stp import analysis  # imports cli helpers, so import lazily
 
-        {
-            "threshold": analysis.run_threshold,
-            "ahp": analysis.run_ahp,
-            "review": analysis.run_review,
-        }[args.cmd](cfg)
+        if args.cmd == "review":
+            analysis.run_review(cfg, args.model)
+        else:
+            {
+                "threshold": analysis.run_threshold,
+                "ahp": analysis.run_ahp,
+                "final": analysis.run_final,
+            }[args.cmd](cfg)
 
 
 if __name__ == "__main__":

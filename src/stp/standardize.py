@@ -20,15 +20,26 @@ def round_half_up(a: np.ndarray) -> np.ndarray:
     return np.floor(a + 0.5)
 
 
-def rescale_score(x: np.ndarray, valid: np.ndarray, invert: bool) -> np.ndarray:
+def rescale_score(
+    x: np.ndarray, valid: np.ndarray, invert: bool, cap: float | None = None
+) -> np.ndarray:
     """Integer-input linear rescale of `x` onto 1..10 over its valid range.
 
+    With `cap`, values are clipped at `cap` first and the range is [min, cap]: the score
+    rises up to `cap` and is flat (10, or 1 if inverted) beyond it. Used for the
+    residential distance, where separation beyond an odour buffer adds no benefit for a
+    decentralised plant.
     Returns float32 scores with SCORE_NODATA outside `valid`.
     """
     if not valid.any():
         raise ValueError("No valid pixels to rescale")
-    xi = round_half_up(x[valid].astype("float64"))
-    lo, hi = xi.min(), xi.max()
+    xv = x[valid].astype("float64")
+    if cap is not None:
+        if cap <= 0:
+            raise ValueError(f"cap must be positive, got {cap}")
+        xv = np.minimum(xv, cap)
+    xi = round_half_up(xv)
+    lo, hi = xi.min(), (round_half_up(cap) if cap is not None else xi.max())
     if hi == lo:
         raise ValueError(f"Layer is constant ({lo}); cannot rescale")
     score = round_half_up(1 + 9 * (xi - lo) / (hi - lo))

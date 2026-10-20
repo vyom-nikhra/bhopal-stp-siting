@@ -61,3 +61,11 @@ def test_weighted_sum_checks_weights_and_propagates_nan():
         overlay.weighted_sum(layers, {"a": 0.5, "b": 0.6})
     with pytest.raises(ValueError, match="do not match"):
         overlay.weighted_sum(layers, {"a": 1.0})
+
+
+def test_rescale_score_with_cap_is_flat_beyond_cap():
+    x = np.array([0.0, 50.0, 100.0, 500.0, 9000.0])
+    s = standardize.rescale_score(x, np.ones(5, bool), invert=False, cap=100)
+    assert s.tolist() == [1, 6, 10, 10, 10]
+    with pytest.raises(ValueError, match="cap"):
+        standardize.rescale_score(x, np.ones(5, bool), invert=False, cap=0)

@@ -16,7 +16,7 @@ import rasterio
 import yaml
 from rasterio.crs import CRS
 
-from stp import ahp, overlay, selection, sensitivity, threshold
+from stp import ahp, io, model, overlay, selection, sensitivity, threshold
 from stp.cli import _corrected_inputs
 from stp.config import REPO_ROOT, Grid
 
@@ -378,11 +378,22 @@ def _maps_links(lat: float, lon: float) -> tuple[str, str]:
     return google, bing
 
 
-def run_review(cfg: dict) -> None:
-    """Site-check sheet: one row per site with map links and blank columns to fill in."""
+def run_review(cfg: dict, model_name: str = "final") -> None:
+    """Site-check sheet: one row per site with map links and blank columns to fill in.
+
+    Refuses to overwrite a sheet that already has answers in it.
+    """
     outputs = Path(cfg["paths"]["output"])
     grid = Grid.from_config(cfg, "sentinel_10m")
-    ranked = gpd.read_parquet(outputs / "phase6" / "sites_ranked.parquet")
+    spec = model.get_spec(cfg, model_name)
+    existing = REPO_ROOT / "review" / "site_check.csv"
+    if existing.exists():
+        filled = pd.read_csv(existing, dtype=str).get("observed_cover", pd.Series(dtype=str))
+        if filled.fillna("").str.strip().ne("").any():
+            raise RuntimeError(
+                f"{existing} already has answers; move it aside before regenerating the sheet"
+            )
+    ranked = gpd.read_parquet(outputs / spec.out_dir / "sites_ranked.parquet")
     original = gpd.read_parquet(outputs / "phase5" / "A_qgis_order_original_lulc" / "sites.parquet")
     m_orig = sensitivity.site_mask(original, grid.shape, grid.transform)
     ranked["in_original_46"] = _coverage_of(ranked, m_orig, grid) > 0
@@ -421,3 +432,72 @@ def run_review(cfg: dict) -> None:
     ]
     kml[["Name", "geometry"]].to_crs(4326).to_file(review / "sites.kml", driver="KML")
     print(f"[review] {len(rows)} sites -> {review / 'site_check.csv'}, {review / 'sites.kml'}")
+
+
+def run_final(cfg: dict) -> dict:
+    """The final model: AHP weights, top-% threshold, capped residential score, plant-sized
+    minimum area. Writes the surface and sites to outputs/final/ and compares them with
+    the original QGIS result (46 sites) and the corrected-land-cover result (59 sites)."""
+    crs = CRS.from_user_input(cfg["crs"])
+    outputs = Path(cfg["paths"]["output"])
+    spec = model.get_spec(cfg, "final")
+    out = outputs / spec.out_dir
+    out.mkdir(parents=True, exist_ok=True)
+    grid = Grid.from_config(cfg, "sentinel_10m")
+    layers, cut = model.build_inputs(cfg, crs, grid, spec)
+    surface = overlay.weighted_sum(layers, spec.weights)
+    thr = threshold.rule_threshold(surface, spec.rule)
+    io.write_cog(out / "suitability.tif", surface.astype("float32"), grid.transform, crs, np.nan)
+    io.write_cog(
+        out / "score_residential_capped.tif", layers["residential"], grid.transform, crs, np.nan
+    )
+    sites = model.make_selector(layers, cut, cfg, grid, crs, spec)(surface)
+    sites.to_parquet(out / "sites.parquet")
+    sites.to_crs(4326).to_file(out / "sites.geojson", driver="GeoJSON")
+
+    res = layers["residential"][np.isfinite(layers["residential"])]
+    m_final = sensitivity.site_mask(sites, grid.shape, grid.transform)
+    compare = {}
+    for label, path in {
+        "qgis_46": outputs / "phase5" / "A_qgis_order_original_lulc" / "sites.parquet",
+        "corrected_59": outputs / "phase5" / "C_corrected_order_corrected_lulc" / "sites.parquet",
+    }.items():
+        other = gpd.read_parquet(path)
+        m_other = sensitivity.site_mask(other, grid.shape, grid.transform)
+        compare[label] = {
+            "sites": len(other),
+            "iou": sensitivity.iou(m_final, m_other),
+            "their_sites_overlapping_final": int((_coverage_of(other, m_final, grid) > 0).sum()),
+            "final_sites_overlapping_theirs": int((_coverage_of(sites, m_other, grid) > 0).sum()),
+        }
+    summary = {
+        "weights": spec.weights,
+        "rule": spec.rule,
+        "threshold_value": thr,
+        "residential_cap_m": spec.residential_cap_m,
+        "residential_score_10_share": float(np.mean(res == 10)),
+        "min_area_sqm": spec.min_area_sqm,
+        "surface_range": [float(np.nanmin(surface)), float(np.nanmax(surface))],
+        "sites": len(sites),
+        "area_ha": float(sites["area_sqm"].sum()) / 1e4,
+        "smallest_site_ha": float(sites["area_sqm"].min()) / 1e4 if len(sites) else None,
+        "compare": compare,
+    }
+    (out / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    print(f"[final] weights {', '.join(f'{k} {v:.3f}' for k, v in spec.weights.items())}")
+    print(
+        f"[final] residential capped at {spec.residential_cap_m:g} m: "
+        f"{summary['residential_score_10_share']:.1%} of pixels score 10"
+    )
+    print(
+        f"[final] surface {summary['surface_range'][0]:.2f}-{summary['surface_range'][1]:.2f}; "
+        f"top {spec.rule.get('pct')}% cut = {thr:.3f}; min area {spec.min_area_sqm:,.0f} m2"
+    )
+    print(f"[final] {len(sites)} sites, {summary['area_ha']:.1f} ha")
+    for label, c in compare.items():
+        print(
+            f"[final] vs {label}: IoU {c['iou']:.3f}; {c['their_sites_overlapping_final']}/"
+            f"{c['sites']} of theirs overlap final; {c['final_sites_overlapping_theirs']}/"
+            f"{len(sites)} final overlap theirs"
+        )
+    return summary
