@@ -18,8 +18,9 @@ The original QGIS workflow, reconstructed from the QGIS processing history, is d
 ```bash
 conda env create -f environment.yml
 conda activate stp
+python scripts/check_env.py
 ```
-Then edit the data paths in `config.yaml`.
+`environment.yml` lists the top-level dependencies. `environment.lock.yml` pins the exact versions the results were produced with; if you build from it, run `pip install -e .` afterwards. Then edit the data paths in `config.yaml`.
 
 ## Data sources
 - Sentinel-2 MSI L2A, tile T43QGF, 9 June 2025: [Copernicus Data Space Ecosystem](https://dataspace.copernicus.eu/)

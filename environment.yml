@@ -37,3 +37,7 @@ dependencies:
   - pip
   - pip:
       - -e .
+variables:
+  # Ignore packages in the per-user site directory (e.g. %APPDATA%\Python\Python312),
+  # which otherwise shadow this environment's packages.
+  PYTHONNOUSERSITE: "1"
