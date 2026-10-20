@@ -215,3 +215,10 @@ model:
   #   Upper end chosen for margin (sludge handling, expansion). -> 0.56 ha (5,588 m2).
   plant_capacity_mld: 12.7
   land_ha_per_mld: 0.044
+
+crosscheck:
+  # Independent evidence per final site (stp.crosscheck); not ground truth.
+  esri_io_year: 2023               # latest Esri/IO annual map on Planetary Computer
+  dynamic_world_date: "2025-06-09" # same Sentinel-2 scene as the analysis
+  ee_project: "auto-stp-bhopal"    # Earth Engine project (user's)
+  chip_pad_m: 300                  # context around each site in the visual chips

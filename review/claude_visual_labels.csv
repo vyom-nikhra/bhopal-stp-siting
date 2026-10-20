@@ -1,0 +1,45 @@
+site_id,observed_cover,usable_for_stp,confidence,notes
+S01,scrub,unsure,low,Small strip at the boundary edge beside a road or canal; sparse brownish cover with vegetation adjacent.
+S02,bare,unsure,low,Very bright pale ground beside a curving canal or road at the boundary edge; looks disturbed (construction / quarry / cleared plot).
+S03,farmland,unsure,low,Long strip along a road or rail corridor through rectangular fallow field parcels.
+S04,farmland,unsure,low,Mosaic of fallow field parcels with some bright built or cleared patches; 33 ha spans many parcels.
+S05,bare,no,low,Riverbank with very bright white patches (sand bar / river-bed sand; possible sand mining). Floodplain.
+S06,scrub,unsure,low,Narrow riverbank strip at the boundary edge with sparse vegetation. Flood risk.
+S07,farmland,unsure,low,59 ha peri-urban edge: fallow fields mixed with bright structures; a road crosses the site.
+S08,farmland,unsure,low,Uniform fallow field in a river bend at the boundary edge. Floodplain.
+S09,farmland,unsure,low,Tan fallow field strip in a river bend at the boundary edge. Floodplain.
+S10,scrub,unsure,low,Riverbank strip with sparse vegetation; bright bare patch outside the site. Flood risk.
+S11,scrub,unsure,low,Riverbank strip at the boundary edge; mixed sparse cover. Flood risk.
+S12,farmland,unsure,low,Small light-brown fallow patch in a field mosaic near a river bend.
+S13,farmland,unsure,low,74 ha of many fallow field parcels with visible boundaries along a river; likely several holdings. Floodplain along the river side.
+S14,farmland,unsure,low,Riverbank part of a large uniform fallow field inside a meander. Floodplain.
+S15,farmland,unsure,low,Fallow fields between a highway or rail line and a meandering river.
+S16,bare,unsure,low,Bright bare field beside a straight road and a river; fallow or recently cleared.
+S17,farmland,unsure,low,Fallow field parcels at the boundary edge next to a peri-urban settlement.
+S18,farmland,unsure,low,Fallow field inside a river meander next to a highway. Floodplain.
+S19,farmland,unsure,low,Single large fallow field inside a river meander next to a highway. Floodplain.
+S20,farmland,unsure,low,Fallow parcels within a mosaic of green cropped fields.
+S21,farmland,unsure,low,Fallow field strip between green cropped fields.
+S22,farmland,unsure,low,Fallow fields along a road and a drainage line.
+S23,built,no,medium,Small plot inside a dense settlement next to a drain; houses within metres. Settlement not mapped as residential in OSM.
+S24,scrub,unsure,low,Small strip at a stream junction next to a settlement. Flood risk.
+S25,bare,unsure,low,Very pale bare field inside a river meander. Floodplain.
+S26,farmland,unsure,low,Fallow plot inside a river meander. Floodplain.
+S27,built,no,medium,Open plot surrounded by dense built-up area with a road across; possibly a playground or vacant urban plot.
+S28,built,no,medium,Inside a village along a drainage channel; houses adjacent.
+S29,farmland,unsure,low,Fallow field beside a road.
+S30,farmland,unsure,low,Fallow field strip between green fields near a river.
+S31,built,no,medium,Inside the same settlement as S23 (neighbouring site); houses adjacent.
+S32,bare,unsure,low,Small pale strip in the same river bend as S24/S25. Floodplain.
+S33,built,no,medium,Thin strip along a road in the middle of a dense settlement.
+S34,farmland,unsure,low,Fallow field at the edge of a settlement; houses within roughly 100 m.
+S35,built,no,medium,Inside a dense settlement (same neighbourhood as S27).
+S36,farmland,no,medium,Thin strip directly against the houses of the settlement next to S34.
+S37,farmland,unsure,low,Fallow field at the boundary edge.
+S38,built,no,medium,Inside a settlement beside a road.
+S39,farmland,unsure,low,Fallow field along a straight road or canal.
+S40,farmland,unsure,low,Fallow field beside a road.
+S41,built,no,medium,Inside a settlement beside a road.
+S42,farmland,unsure,low,Small fallow plot between green fields next to farm structures (neighbours S43).
+S43,farmland,unsure,low,Small fallow plot between green fields next to farm structures (neighbours S42).
+S44,farmland,unsure,low,Fallow field beside a road; large built complex with regular rows (industrial / warehouses) ~250 m south.

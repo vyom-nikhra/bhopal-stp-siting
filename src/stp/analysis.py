@@ -378,6 +378,10 @@ def _maps_links(lat: float, lon: float) -> tuple[str, str]:
     return google, bing
 
 
+# Columns left blank for the author's verification of the automated labels.
+VYOM_COLUMNS = ["vyom_agree", "vyom_cover", "vyom_usable", "vyom_notes"]
+
+
 def run_review(cfg: dict, model_name: str = "final") -> None:
     """Site-check sheet: one row per site with map links and blank columns to fill in.
 
@@ -386,14 +390,22 @@ def run_review(cfg: dict, model_name: str = "final") -> None:
     outputs = Path(cfg["paths"]["output"])
     grid = Grid.from_config(cfg, "sentinel_10m")
     spec = model.get_spec(cfg, model_name)
-    existing = REPO_ROOT / "review" / "site_check.csv"
+    review = REPO_ROOT / "review"
+    existing = review / "site_check.csv"
     if existing.exists():
-        filled = pd.read_csv(existing, dtype=str).get("observed_cover", pd.Series(dtype=str))
-        if filled.fillna("").str.strip().ne("").any():
+        old = pd.read_csv(existing, dtype=str).fillna("")
+        user_cols = [c for c in old.columns if c in VYOM_COLUMNS or c == "observed_cover"]
+        if "claude_cover" in old.columns:  # new layout: observed_cover is not a user column
+            user_cols = [c for c in user_cols if c != "observed_cover"]
+        if any(old[c].str.strip().ne("").any() for c in user_cols):
             raise RuntimeError(
-                f"{existing} already has answers; move it aside before regenerating the sheet"
+                f"{existing} already has your answers; move it aside before regenerating"
             )
     ranked = gpd.read_parquet(outputs / spec.out_dir / "sites_ranked.parquet")
+    xc_path = outputs / spec.out_dir / "sites_crosscheck.parquet"
+    xc = gpd.read_parquet(xc_path).set_index("site_id") if xc_path.exists() else None
+    labels_path = review / "claude_visual_labels.csv"
+    labels = pd.read_csv(labels_path).set_index("site_id") if labels_path.exists() else None
     original = gpd.read_parquet(outputs / "phase5" / "A_qgis_order_original_lulc" / "sites.parquet")
     m_orig = sensitivity.site_mask(original, grid.shape, grid.transform)
     ranked["in_original_46"] = _coverage_of(ranked, m_orig, grid) > 0
@@ -416,13 +428,20 @@ def run_review(cfg: dict, model_name: str = "final") -> None:
                 "lon": round(float(s["lon"]), 6),
                 "google_maps": google,
                 "bing_aerial": bing,
-                "observed_cover": "",
-                "usable_for_stp": "",
-                "confidence": "",
-                "notes": "",
             }
         )
-    review = REPO_ROOT / "review"
+        row = rows[-1]
+        if xc is not None:
+            x = xc.loc[s["site_id"]]
+            for p in ("worldcover_2021", "esri_io_2023", "dynamic_world"):
+                row[p] = f"{x[f'{p}_dominant']} {x[f'{p}_dominant_share']:.0%}"
+            row["product_verdict"] = x["product_verdict"]
+            row["osm_landuse"] = x["osm_landuse"] if "osm_landuse" in x.index else "not fetched"
+        if labels is not None:
+            lab = labels.loc[s["site_id"]]
+            for c in ("observed_cover", "usable_for_stp", "confidence", "notes"):
+                row[f"claude_{c.replace('observed_', '').replace('_for_stp', '')}"] = lab[c]
+        row.update(dict.fromkeys(VYOM_COLUMNS, ""))
     review.mkdir(exist_ok=True)
     pd.DataFrame(rows).to_csv(review / "site_check.csv", index=False)
     kml = ranked[["site_id", "rank", "robust", "geometry"]].copy()

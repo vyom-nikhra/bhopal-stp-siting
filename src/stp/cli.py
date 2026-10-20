@@ -1,7 +1,7 @@
 """Command-line entry point: `python -m stp.cli <command> [--config config.yaml]`.
 
 Commands: phase1, phase2, phase3, phase3k, phase4, phase5, sensitivity, sites, network,
-threshold, ahp, review, final
+threshold, ahp, review, final, crosscheck, crosscheck-osm
 (see `--help`).
 """
 
@@ -880,6 +880,8 @@ def main() -> None:
     sub.add_parser("ahp", help="Phase 6c: AHP weights, consistency, questionnaire, effect")
     sub.add_parser("review", help="Site-check sheet (CSV with map links + KML outlines)")
     sub.add_parser("final", help="The final model: AHP, top-%, capped residential, plant area")
+    sub.add_parser("crosscheck", help="Independent land-cover evidence + chips per site")
+    sub.add_parser("crosscheck-osm", help="Add OSM land-use overlap to the cross-check")
     args = p.parse_args()
     cfg = load_config(args.config)
     if args.cmd == "phase1":
@@ -900,11 +902,20 @@ def main() -> None:
         run_sites(cfg, args.model)
     elif args.cmd == "network":
         run_network(cfg, args.model)
-    elif args.cmd in ("threshold", "ahp", "review", "final"):
+    elif args.cmd in ("threshold", "ahp", "review", "final", "crosscheck", "crosscheck-osm"):
         from stp import analysis  # imports cli helpers, so import lazily
 
         if args.cmd == "review":
             analysis.run_review(cfg, args.model)
+        elif args.cmd in ("crosscheck", "crosscheck-osm"):
+            from stp import crosscheck
+
+            run = (
+                crosscheck.run_crosscheck
+                if args.cmd == "crosscheck"
+                else crosscheck.run_crosscheck_osm
+            )
+            run(cfg, args.model)
         else:
             {
                 "threshold": analysis.run_threshold,

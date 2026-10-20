@@ -2,6 +2,16 @@
 
 Newest entries at the top. Each entry records what was done, what was verified, and what comes next, so a fresh session can resume from here.
 
+## 2026-10-21: Final model built; automated site cross-check
+- Decisions (user, 2026-10-20): AHP weights as main; top-0.3395% threshold; residential distance capped at 100 m (CPHEEO 2013 via CPCB filing); minimum area 12.7 MLD x 0.044 ha/MLD = 5,588 m2 (Package 3 mean plant size; Saxena/SuSanA measured footprints). Config `model:`; `stp.model` specs ("original" for parity, "final" default for Phase 6 commands, `--model`).
+- `python -m stp.cli final`: 44 sites, 294.0 ha (IoU 0.10 with the QGIS 46). Cut 9.464; 5,142 px tie at the cut, so 0.389% selected. Residential cap: 83.2% of pixels score 10, so lake distance (0.333) drives selection.
+- Final sensitivity: median IoU 0.989, 40/44 sites persistent in >= 90% of draws. Partly a ceiling effect (top tier saturated on capped residential, water, land cover). All 44 reach a major road (median 2.5 km).
+- `python -m stp.cli crosscheck`: WorldCover 2021, Esri IO 2023, Dynamic World (same scene, via EE project auto-stp-bhopal). Verdicts: 36 likely_farmland, 6 likely_built, 2 mixed, 0 consistent_open_land. The "barren" K-Means class is mostly fallow farmland.
+- Claude's visual labels (Sentinel-2 10 m chips) in `review/claude_visual_labels.csv`: 10 sites look unusable (8 inside settlements unmapped as OSM residential, 1 against houses, 1 river-bed sand); ~14 riverbank/floodplain; the rest fallow farmland.
+- `crosscheck-osm` NOT yet run: Overpass blocked on this network again. Rerun when reachable, then `review` (refuses to overwrite once vyom_* columns are filled).
+- Sheet sent to the user: `review/site_check.csv` (+ KML, README, chips zip from outputs/final).
+- **Next:** write up the final model and findings (docs/parity.md + README), Phase 7 apps, Phase 8 polish. Discuss with the user: farmland/settlement findings may call for a model change (e.g. require Dynamic World bare/low-veg, exclude a settlement mask built from Dynamic World "built").
+
 ## 2026-10-20: Phase 6 threshold comparison, AHP draft, site-check sheet
 - `python -m stp.cli threshold` (~10 min): fixed >= 8 swings 23-95 sites / 71-424 ha under +-20% weights; top 0.3395% (same size) gives 45-66 sites / 187-211 ha, location IoU 0.65 vs 0.54. Robust core: 33 sites (>= 75%), 24 sites (>= 90%). docs/parity.md 6e.
 - `python -m stp.cli ahp`: draft judgements in `ahp_judgements.yaml` (by Claude, for Vyom to review), questionnaire generated at `docs/ahp_questionnaire.md`. CR 0.0099; water becomes the top weight (0.333). >= 8 with AHP weights: 38 sites / 219 ha, 15/20 robust sites kept. docs/parity.md 6f.
