@@ -32,7 +32,7 @@
 ### Phase 4: Standardisation and weighted overlay (rioxarray, xarray)
 - Explicitly align the 12.5 m and shifted 10 m grids onto the Sentinel 10 m grid (`reproject_match`).
 - Linear 1–10 rescale, inverting roads/drainage/DEM. Reconstruct the slope rule from `Reclass_10_Slope`.
-- Weighted sum. **Parity:** `Final_STP_Suitability_Map` (range 3.42–8.48).
+- Weighted sum. **Parity:** `Final_STP_Suitability_Map` (range 3.06–8.48).
 
 ### Phase 5: Site selection (rasterio.features.shapes, geopandas)
 - Queries 1–3 → 4-connected polygonize → 500 m school/hospital buffers → difference → area ≥ 5000 m².
@@ -63,4 +63,4 @@
 - Report orders Difference before the area filter; the real order was the reverse.
 - Dashboard showed 47 pre-buffer sites, including one inside an exclusion buffer.
 - Mixed 10 m / shifted 10 m / 12.5 m grids resampled silently.
-- Slope scoring rule not recorded.
+- Scoring rule not recorded; recovered from the data as GRASS's integer-input rescale (inputs rounded to whole numbers first, hence 5° slope steps).

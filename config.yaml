@@ -102,14 +102,33 @@ lulc:
     eval_size: 20000
 
 standardize:
-  # r.rescale to 1..10 over each layer's own min..max (recovered); "invert" = 11 - x
-  # (confirmed from data: corr(raw, reclass) < 0 and |reclass - (11 - linear)| <= 0.6)
-  roads:       {method: "linear", invert: true}
-  drainage:    {method: "linear", invert: true}
-  residential: {method: "linear", invert: false}
-  water:       {method: "linear", invert: false}
-  dem:         {method: "linear", invert: true}
-  slope:       {method: "unknown"}  # TODO Phase 4: reconstruct from Reclass_10_Slope (values 3..10)
+  # Recovered exactly (docs/parity.md, Phase 4): round the input to whole numbers, map the
+  # layer's own [min, max] linearly onto [1, 10], round half up; "invert" = 11 - x.
+  # source: pipeline output (relative to paths.output); reference: QGIS Reclass_* raster.
+  roads:
+    invert: true
+    source: "phase2/dist_roads.tif"
+    reference: "Reclass_05_Dist_Roads.tif"
+  drainage:
+    invert: true
+    source: "phase2/dist_drainage.tif"
+    reference: "Reclass_06_Dist_Drainage.tif"
+  residential:
+    invert: false
+    source: "phase2/dist_residential.tif"
+    reference: "Reclass_07_Dist_Residential.tif"
+  water:
+    invert: false
+    source: "phase2/dist_water.tif"
+    reference: "Reclass_08_Dist_Water.tif"
+  dem:
+    invert: true
+    source: "phase1/dem.tif"
+    reference: "Reclass_09_DEM.tif"
+  slope:
+    invert: true
+    source: "phase1/slope.tif"
+    reference: "Reclass_10_Slope.tif"
 
 weights:  # from the report's Raster Calculator expression (not logged in history)
   residential: 0.25
@@ -134,4 +153,4 @@ selection:
 parity:  # reference numbers the pipeline is checked against
   final_sites: 46
   final_area_sqm: 1254202
-  suitability_range: [3.42, 8.48]
+  suitability_range: [3.06, 8.48]  # full-resolution read; 3.42 was a 4x-subsampled estimate

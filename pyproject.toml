@@ -17,7 +17,11 @@ testpaths = ["tests"]
 markers = ["needs_data: requires the local raw/reference data from config.yaml"]
 # Tests fit K-Means on a few hundred points (one chunk), which triggers sklearn's
 # Windows/MKL memory-leak warning; real runs use millions of pixels and many chunks.
-filterwarnings = ["ignore:MiniBatchKMeans is known to have a memory leak:UserWarning"]
+filterwarnings = [
+    "ignore:MiniBatchKMeans is known to have a memory leak:UserWarning",
+    # rioxarray 0.23 still uses the `transform * coords` form deprecated in affine 3.
+    "ignore:Use `@` matmul instead:PendingDeprecationWarning:rioxarray",
+]
 
 [tool.ruff]
 line-length = 100

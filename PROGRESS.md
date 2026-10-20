@@ -2,6 +2,15 @@
 
 Newest entries at the top. Each entry records what was done, what was verified, and what comes next, so a fresh session can resume from here.
 
+## 2026-10-20: Phase 4 done
+- `python -m stp.cli phase4`: 1-10 scores (`stp.standardize`), explicit nearest-neighbour alignment onto the Sentinel 10 m grid (`rioxarray.reproject_match`, `stp.overlay`), weighted overlay. Writes `outputs/phase4/score_*.tif` and three suitability surfaces.
+- **Exact parity:** all six scores identical to `Reclass_*`; the pipeline overlay is identical to `Final_STP_Suitability_Map` (0 difference, 8,105,749 px).
+- Scoring rule recovered: round input to integer -> linear 1-10 over the integer range -> round half up -> `11 - x` for roads/drainage/DEM. Explains the slope steps; no unknown rule left.
+- Corrected land cover raises the share of pixels >= 8 from 0.2208% to 0.3395%.
+- Correction: the true suitability range is 3.06-8.48 (3.42 came from a 4x-subsampled read); fixed in config and docs.
+- 38 unit tests pass; ruff clean.
+- **Next (Phase 5):** Queries 1-3 -> 4-connected polygonize -> 500 m school/hospital buffers -> difference -> area >= 5000 m2. Parity vs 46 sites / 1,254,202 m2 (original order: area filter before difference; pipeline: difference first). Then the same for the corrected surface.
+
 ## 2026-10-20: Phase 3 done
 - 3a: the original `kmeans_lulc.py` reproduced 100% in the user's `pytorch` env (sklearn 1.7.2). With sklearn 1.9.1: 98.9% label agreement on the QGIS stack, 73.5% on ours. The gap is K-Means instability (seed alone: 76-99% on the identical stack; `n_iter_ == 1`), not the B11 artefact.
 - 3b: user chose k=4, full KMeans(n_init=10) on a 1M sample, original scores (barren 10, built-up 3, vegetation 2, water 1). Stable (ARI 0.957); clusters named automatically from MNDWI/NDVI + OSM residential/water overlap (`stp.lulc.name_clusters`, raises if ambiguous).
@@ -32,7 +41,7 @@ Newest entries at the top. Each entry records what was done, what was verified, 
 ## 2026-10-20: Phase 0 started
 - Created the repo with `PLAN.md`, `config.yaml`, `environment.yml`, `pyproject.toml` and `docs/qgis_workflow.md`.
 - Recovered the QGIS parameters from `user-history.db` (63 runs) and from inspecting the rasters; see `docs/qgis_workflow.md`.
-- Verified reference numbers: 46 final sites / 1,254,202 m²; suitability range 3.42–8.48.
+- Verified reference numbers: 46 final sites / 1,254,202 m²; suitability range 3.42–8.48 (later corrected to 3.06–8.48 at full resolution).
 - **Next:** build the conda env (`conda env create -f environment.yml`), check imports, then start Phase 1.
 - Repo published: https://github.com/vyom-nikhra/bhopal-stp-siting (public).
 - Planning boundary source: DataMeet Municipal_Spatial_Data, CC BY 4.0 (attributed in the README).

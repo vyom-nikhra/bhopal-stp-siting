@@ -126,3 +126,32 @@ Compared with the original `Reclass_ML_LULC`, the score is identical on **79.7%*
 | 10 (barren) | 8.0% | 0.2% | 0.0% | 91.8% |
 
 So the barren class grows (44.7% → 57.3% of the area), mostly taking from the original built-up and vegetation classes. Because the scene is pre-monsoon (9 June), some of this is fallow farmland, which a single date can't separate from true barren land. Phase 5's road-access and score thresholds narrow it down, and the Phase 6 ground-truth check will measure it.
+
+## Phase 4: scoring and weighted overlay
+
+Reproduce with `python -m stp.cli phase4` (report: `outputs/parity/phase4.json`).
+
+| Check | Mask agree | Exact | Max \|d\| |
+|---|---|---|---|
+| Roads, drainage, residential, water, DEM, slope scores vs `Reclass_*` | 1.0000 | **1.0000** | 0 |
+| Overlay of the QGIS `Reclass_*` rasters vs `Final_STP_Suitability_Map` | 1.0000 | **1.0000** | 0 |
+| Full pipeline overlay (original land cover) vs `Final_STP_Suitability_Map` | 1.0000 | **1.0000** | 0 |
+
+**The pipeline reproduces the QGIS suitability map exactly** (8,105,749 pixels, range 3.06–8.48, 0.2208% ≥ 8).
+
+### Findings
+
+**7. The scoring rule was GRASS's integer-input rescale.** `r.rescale` rounded each input to whole numbers, mapped the layer's integer [min, max] onto [1, 10], and rounded half up; roads, drainage and DEM were then inverted (`11 − x`). This reproduces all six score rasters with zero mismatches (`scripts/diagnose_rescale.py`). Rounding the input first is why the slope scores step at 2.5°, 7.5°, 12.5° …; it isn't a separate slope table. Round-half-up (not numpy's round-half-to-even) is needed for the last 4 water pixels.
+
+**8. QGIS's implicit resampling was nearest neighbour.** The Raster Calculator combined three grids (Sentinel 10 m, the shifted 10 m proximity grid, and the 12.5 m DEM grid). Explicit nearest-neighbour alignment onto the Sentinel grid (`rioxarray.reproject_match`) gives an identical map, so the pipeline now does openly what QGIS did silently.
+
+**9. Phase 2's small distance differences don't change any score.** GDAL Proximity's ≤ 2.7 m overestimates are far smaller than one score bin (≈ 234 m for roads, 1363 m for water) and never move a pixel across a bin boundary.
+
+### Effect of the corrected land cover
+
+| Surface | Min | Max | Mean | Pixels ≥ 8 |
+|---|---|---|---|---|
+| QGIS / pipeline with original land cover | 3.06 | 8.48 | 5.71 | 0.2208% |
+| Pipeline with corrected land cover (Phase 3b) | 2.98 | 8.48 | 5.79 | 0.3395% |
+
+The corrected land cover raises the area scoring ≥ 8 by about 54%, mostly because more land is now classed as barren (score 10).

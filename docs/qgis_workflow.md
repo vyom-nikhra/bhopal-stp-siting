@@ -54,10 +54,26 @@ The water raster was first saved as `Raster_09_Dist_Water` and later re-clipped 
 
 ## 6. Standardisation to a 1–10 score
 
-- GRASS `r.rescale` with `from = [min, max]` of each layer and `to = [1, 10]` **[H]**.
-- **Inverted afterwards (`11 − x`) for roads, drainage and DEM** (closer, or lower, is better). This was confirmed from the data: correlation with the raw layer is −0.96 / −0.99 / −0.98, and |reclass − (11 − linear)| ≤ 0.6 **[D]**. Residential and water distance are not inverted (corr +0.99) **[D]**.
-- **Slope rule: unknown.** `Reclass_10_Slope` takes values 3–10 (8 distinct values). It matches neither a linear rescale nor the logged table `[0–5]→10, (5–15]→5, (15–90]→1` **[D]**.
-- Output grids: roads and drainage Float32 on the 10 m proximity grid; residential and water Byte (NoData 255); DEM and slope on the 12.5 m grid **[D]**.
+Recovered exactly from the data **[H][D]**: GRASS `r.rescale` (`from = [min, max]`, `to = [1, 10]`) on each layer, which
+
+1. rounded the input to whole numbers,
+2. mapped the layer's own integer [min, max] linearly onto [1, 10],
+3. rounded the result (half up).
+
+Roads, drainage and DEM were then inverted with `11 − x` in the Raster Calculator (closer to roads/drainage and lower ground score higher). Residential and water distance are not inverted.
+
+| Layer | Integer input range | Inverted |
+|---|---|---|
+| Roads distance | 0–2107 m | yes |
+| Drainage distance | 0–6155 m | yes |
+| Residential distance | 0–9160 m | no |
+| Water distance | 0–12272 m | no |
+| DEM | 378–562 m | yes |
+| Slope | 0–46° | yes |
+
+This reproduces all six `Reclass_*` rasters with zero mismatches. The integer step explains the slope breakpoints at 2.5°, 7.5°, 12.5° … (a slope of 2.4° rounds to 2, 2.6° to 3). The logged slope table `[0–5]→10, (5–15]→5, (15–90]→1` was tried but not used.
+
+Output grids: roads and drainage Float32 on the 10 m proximity grid; residential and water Byte (NoData 255); DEM and slope on the 12.5 m grid **[D]**.
 
 ## 7. Weighted overlay (Raster Calculator, not logged)
 
@@ -66,7 +82,7 @@ S = 0.25·Residential + 0.20·Water + 0.15·Drainage + 0.12·Slope
   + 0.10·Roads + 0.10·LULC + 0.08·DEM
 ```
 
-**[R]** The output is on the Sentinel 10 m grid. The other grids were resampled implicitly by the calculator. Values range from 3.42 to 8.48, and only 0.22% of pixels are ≥ 8 **[D]**.
+**[R]** The output is on the Sentinel 10 m grid. The other grids were resampled implicitly by the calculator, with nearest neighbour: the Python pipeline's explicit nearest-neighbour alignment reproduces the map exactly **[D]**. Values range from 3.06 to 8.48, and only 0.22% of pixels are ≥ 8 **[D]**.
 
 ## 8. Site selection
 

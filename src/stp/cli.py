@@ -1,6 +1,6 @@
 """Command-line entry point: `python -m stp.cli <command> [--config config.yaml]`.
 
-Commands: phase1, phase2, phase3, phase3k (see `--help`).
+Commands: phase1, phase2, phase3, phase3k, phase4 (see `--help`).
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ import numpy as np
 import rasterio
 from rasterio.crs import CRS
 
-from stp import io, lulc, parity, preprocess, proximity
+from stp import io, lulc, overlay, parity, preprocess, proximity, standardize
 from stp.config import DEFAULT_CONFIG, Grid, load_config
 
 # See scripts/diagnose_b11.py and docs/parity.md.
@@ -381,6 +381,102 @@ def _plot_k_selection(rows: list[dict], path: Path) -> None:
     plt.close(fig)
 
 
+def _read_da(path: Path, crs: CRS):
+    """Read band 1 as a georeferenced DataArray (NaN = NoData) plus array/transform."""
+    if not path.exists():
+        raise FileNotFoundError(f"{path} missing: run the earlier phases first")
+    with rasterio.open(path) as src:
+        arr, transform, nodata = src.read(1), src.transform, src.nodata
+    return overlay.to_dataarray(arr, transform, crs, nodata), arr, transform, nodata
+
+
+def run_phase4(cfg: dict) -> dict:
+    """Scores (4a), explicit grid alignment and weighted overlay (4b), with parity."""
+    crs = CRS.from_user_input(cfg["crs"])
+    outputs = Path(cfg["paths"]["output"])
+    out = outputs / "phase4"
+    ref = Path(cfg["paths"]["reference_rasters"])
+    grid = Grid.from_config(cfg, "sentinel_10m")
+    template = overlay.grid_template(grid)
+    weights = cfg["weights"]
+
+    # 4a: scores on each layer's native grid, compared with the QGIS Reclass_* rasters.
+    results, ours, refs = [], {}, {}
+    for name, sc in cfg["standardize"].items():
+        _, arr, transform, nodata = _read_da(outputs / sc["source"], crs)
+        valid = np.isfinite(arr) & (arr != nodata) if nodata is not None else np.isfinite(arr)
+        score = standardize.rescale_score(arr, valid, sc["invert"])
+        io.write_cog(out / f"score_{name}.tif", score, transform, crs, standardize.SCORE_NODATA)
+        results.append(
+            parity.compare(
+                f"score_{name}",
+                score,
+                transform,
+                standardize.SCORE_NODATA,
+                ref / sc["reference"],
+                tol=0,
+            )
+        )
+        ours[name] = overlay.align(
+            overlay.to_dataarray(score, transform, crs, standardize.SCORE_NODATA), template
+        )
+        refs[name] = overlay.align(_read_da(ref / sc["reference"], crs)[0], template)
+
+    lulc_original = overlay.align(_read_da(ref / "Reclass_ML_LULC.tif", crs)[0], template)
+    lulc_corrected = overlay.align(
+        _read_da(outputs / "phase3" / "lulc_score.tif", crs)[0], template
+    )
+
+    # 4b: three overlays, so each difference can be traced to its cause.
+    final_ref = ref / "Final_STP_Suitability_Map.tif"
+    variants = {
+        "qgis_scores": {**refs, "lulc": lulc_original},
+        "pipeline_original_lulc": {**ours, "lulc": lulc_original},
+        "pipeline_corrected_lulc": {**ours, "lulc": lulc_corrected},
+    }
+    summary = {}
+    for vname, layers in variants.items():
+        s = overlay.weighted_sum(layers, weights).astype("float32")
+        io.write_cog(out / f"suitability_{vname}.tif", s, grid.transform, crs, np.nan)
+        valid = np.isfinite(s)
+        summary[vname] = {
+            "min": float(np.nanmin(s)),
+            "max": float(np.nanmax(s)),
+            "mean": float(np.nanmean(s)),
+            "share_ge_8": float(np.mean(s[valid] >= cfg["selection"]["suitability_min"])),
+            "n_valid": int(valid.sum()),
+        }
+        if vname != "pipeline_corrected_lulc":
+            results.append(
+                parity.compare(f"suit_{vname}", s, grid.transform, np.nan, final_ref, tol=1e-4)
+            )
+
+    with rasterio.open(final_ref) as src:
+        r = src.read(1).astype("float64")
+    r = r[(r > -1e30) & np.isfinite(r)]
+    summary["qgis_reference"] = {
+        "min": float(r.min()),
+        "max": float(r.max()),
+        "mean": float(r.mean()),
+        "share_ge_8": float(np.mean(r >= cfg["selection"]["suitability_min"])),
+        "n_valid": int(r.size),
+    }
+    print(f"{'surface':26s} {'min':>6s} {'max':>6s} {'mean':>6s} {'>=8':>8s} {'valid px':>9s}")
+    for k, v in summary.items():
+        print(
+            f"{k:26s} {v['min']:6.2f} {v['max']:6.2f} {v['mean']:6.2f} "
+            f"{v['share_ge_8']:8.4%} {v['n_valid']:9d}"
+        )
+
+    report = outputs / "parity" / "phase4.json"
+    report.parent.mkdir(parents=True, exist_ok=True)
+    payload = {"rasters": [x.as_dict() for x in results], "surfaces": summary}
+    report.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    print(parity.format_table(results))
+    print(f"[phase4] report -> {report}")
+    return payload
+
+
 def main() -> None:
     p = argparse.ArgumentParser(prog="stp")
     p.add_argument("--config", default=str(DEFAULT_CONFIG))
@@ -389,6 +485,7 @@ def main() -> None:
     sub.add_parser("phase2", help="distance rasters + parity")
     sub.add_parser("phase3", help="original K-Means land cover (3a) + parity")
     sub.add_parser("phase3k", help="k-selection metrics for the corrected K-Means (3b)")
+    sub.add_parser("phase4", help="1-10 scores, grid alignment, weighted overlay + parity")
     args = p.parse_args()
     cfg = load_config(args.config)
     if args.cmd == "phase1":
@@ -399,6 +496,8 @@ def main() -> None:
         run_phase3(cfg)
     elif args.cmd == "phase3k":
         run_phase3k(cfg)
+    elif args.cmd == "phase4":
+        run_phase4(cfg)
 
 
 if __name__ == "__main__":
