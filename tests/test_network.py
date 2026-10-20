@@ -66,3 +66,22 @@ def test_major_nodes_raises_without_major_roads():
     g.remove_edge(3, 3)
     with pytest.raises(ValueError, match="no major"):
         network.major_nodes(g)
+
+
+def test_prefer_reachable_raises_when_nothing_answers(monkeypatch):
+    import socket
+
+    from stp import net
+
+    monkeypatch.setattr(
+        net,
+        "_original_getaddrinfo",
+        lambda *a, **k: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("192.0.2.1", 443))],
+    )
+
+    def refuse(*a, **k):
+        raise OSError("unreachable")
+
+    monkeypatch.setattr(net.socket, "create_connection", refuse)
+    with pytest.raises(ConnectionError, match="No reachable address"):
+        net.prefer_reachable("example.invalid", timeout=0.1)

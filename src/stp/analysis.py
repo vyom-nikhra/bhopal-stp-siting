@@ -406,6 +406,12 @@ def run_review(cfg: dict, model_name: str = "final") -> None:
     xc = gpd.read_parquet(xc_path).set_index("site_id") if xc_path.exists() else None
     labels_path = review / "claude_visual_labels.csv"
     labels = pd.read_csv(labels_path).set_index("site_id") if labels_path.exists() else None
+    expected_ids = {f"S{r:02d}" for r in ranked["rank"]}
+    if labels is not None and set(labels.index) != expected_ids:
+        raise RuntimeError(
+            f"{labels_path.name} has site ids {len(labels)} that don't match the current "
+            f"{len(expected_ids)} sites; archive it or relabel before regenerating"
+        )
     original = gpd.read_parquet(outputs / "phase5" / "A_qgis_order_original_lulc" / "sites.parquet")
     m_orig = sensitivity.site_mask(original, grid.shape, grid.transform)
     ranked["in_original_46"] = _coverage_of(ranked, m_orig, grid) > 0
@@ -465,12 +471,30 @@ def run_final(cfg: dict) -> dict:
     grid = Grid.from_config(cfg, "sentinel_10m")
     layers, cut = model.build_inputs(cfg, crs, grid, spec)
     surface = overlay.weighted_sum(layers, spec.weights)
-    thr = threshold.rule_threshold(surface, spec.rule)
+    masks = model.build_constraints(cfg, grid, spec)
     io.write_cog(out / "suitability.tif", surface.astype("float32"), grid.transform, crs, np.nan)
     io.write_cog(
         out / "score_residential_capped.tif", layers["residential"], grid.transform, crs, np.nan
     )
-    sites = model.make_selector(layers, cut, cfg, grid, crs, spec)(surface)
+    valid = np.isfinite(surface)
+    constraint_stats = {}
+    if masks:
+        for name, m in masks.items():
+            io.write_cog(
+                out / f"constraint_{name}.tif", m.astype("uint8"), grid.transform, crs, None
+            )
+            constraint_stats[name] = float(np.mean(m[valid]))
+        print(
+            "[final] constraints (share of valid pixels): "
+            + ", ".join(f"{k} {v:.1%}" for k, v in constraint_stats.items())
+        )
+    eligible = masks["eligible"] if masks else None
+    if eligible is not None and spec.rule["kind"] == "top_area":
+        n_target = round(spec.rule["pct_of_valid"] / 100 * int(valid.sum()))
+        thr = threshold.top_n_threshold(np.where(eligible, surface, np.nan), n_target)
+    else:
+        thr = threshold.rule_threshold(surface, spec.rule)
+    sites = model.make_selector(layers, cut, cfg, grid, crs, spec, eligible=eligible)(surface)
     sites.to_parquet(out / "sites.parquet")
     sites.to_crs(4326).to_file(out / "sites.geojson", driver="GeoJSON")
 
@@ -495,6 +519,8 @@ def run_final(cfg: dict) -> dict:
         "threshold_value": thr,
         "residential_cap_m": spec.residential_cap_m,
         "residential_score_10_share": float(np.mean(res == 10)),
+        "constraints": spec.constraints,
+        "constraint_shares": constraint_stats,
         "min_area_sqm": spec.min_area_sqm,
         "surface_range": [float(np.nanmin(surface)), float(np.nanmax(surface))],
         "sites": len(sites),
@@ -510,7 +536,7 @@ def run_final(cfg: dict) -> dict:
     )
     print(
         f"[final] surface {summary['surface_range'][0]:.2f}-{summary['surface_range'][1]:.2f}; "
-        f"top {spec.rule.get('pct')}% cut = {thr:.3f}; min area {spec.min_area_sqm:,.0f} m2"
+        f"rule {spec.rule}: cut = {thr:.3f}; min area {spec.min_area_sqm:,.0f} m2"
     )
     print(f"[final] {len(sites)} sites, {summary['area_ha']:.1f} ha")
     for label, c in compare.items():

@@ -63,3 +63,11 @@ def test_top_pct_threshold_and_rules():
         threshold.top_pct_threshold(surface, 0)
     with pytest.raises(ValueError):
         threshold.rule_threshold(surface, {"kind": "median"})
+
+
+def test_top_n_threshold():
+    v = np.array([5.0, 9.0, np.nan, 7.0, 9.0, 1.0])
+    assert threshold.top_n_threshold(v, 1) == 9.0
+    assert threshold.top_n_threshold(v, 3) == 7.0
+    with pytest.raises(ValueError):
+        threshold.top_n_threshold(v, 6)

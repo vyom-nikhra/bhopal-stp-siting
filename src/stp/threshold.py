@@ -35,3 +35,13 @@ def rule_threshold(surface: np.ndarray, rule: dict) -> float:
     if rule["kind"] == "top_pct":
         return top_pct_threshold(surface, rule["pct"])
     raise ValueError(f"Unknown rule kind {rule['kind']!r}")
+
+
+def top_n_threshold(values: np.ndarray, n: int) -> float:
+    """Score of the n-th best valid value (ties at that score are all kept by `>=`)."""
+    v = values[np.isfinite(values)]
+    if n < 1:
+        raise ValueError(f"n must be >= 1, got {n}")
+    if v.size < n:
+        raise ValueError(f"Only {v.size} valid values, fewer than the {n} requested")
+    return float(np.partition(v, v.size - n)[v.size - n])

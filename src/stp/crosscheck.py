@@ -330,6 +330,11 @@ def run_crosscheck_osm(cfg: dict, model_name: str = "final") -> gpd.GeoDataFrame
     if not lu_path.exists():
         import osmnx as ox
 
+        from stp.net import prefer_reachable
+
+        print(
+            f"[crosscheck-osm] overpass-api.de reachable via {prefer_reachable('overpass-api.de')}"
+        )
         poly = io.read_boundary(cfg["paths"]["boundary"], 4326).union_all()
         lu = ox.features_from_polygon(poly, tags={"landuse": True})
         lu_path.parent.mkdir(parents=True, exist_ok=True)

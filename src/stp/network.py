@@ -41,6 +41,9 @@ def load_drive_graph(
     if graphml.exists():
         g = ox.load_graphml(graphml)
     else:
+        from stp.net import prefer_reachable
+
+        prefer_reachable("overpass-api.de")
         ox.settings.use_cache = True
         ox.settings.cache_folder = str(cache_dir)
         g = ox.graph_from_polygon(area_lonlat, network_type="drive")

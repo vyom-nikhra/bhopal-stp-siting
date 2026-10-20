@@ -201,7 +201,24 @@ model:
   # The FINAL model, decided with the author on 2026-10-20 (`--model final`, the default
   # for the Phase 6 commands). Phases 1-5 keep the original QGIS setup for parity.
   weights: ahp                     # from ahp_judgements.yaml (approved)
-  threshold: {kind: top_pct, pct: 0.3395}
+  # Land budget: the best-scoring ELIGIBLE pixels, as many as the top 0.3395% of all valid
+  # pixels (~27.5k px, ~275 ha), so results stay comparable with the earlier models.
+  threshold: {kind: top_area, pct_of_valid: 0.3395}
+  # Hard constraints applied before ranking, from Dynamic World over the 12 months up to
+  # the analysis scene (141 images; scripts/explore_dynamic_world.py). Decided 2026-10-21
+  # after the site cross-check found 36/44 sites on farmland and 8 inside settlements.
+  constraints:
+    dynamic_world: {start: "2024-06-10", end: "2025-06-10"}
+    # Yearly most-common class must be grass (2), shrub and scrub (5) or bare (7): not
+    # cropland (fallow fields look bare in June), trees, built or water. 4.1% of the city.
+    eligible_mode_classes: [2, 5, 7]
+    # Settlement = built in >= 50% of observations (catches villages OSM doesn't map),
+    # excluded with the same 100 m odour buffer as the residential cap.
+    settlement_built_pct: 50
+    settlement_buffer_m: 100
+    # Flood proxy: water in >= 10% of observations (seasonal inundation as well as
+    # permanent water). Does not capture narrow riverbanks; see docs.
+    flood_water_pct: 10
   # Residential distance is scored only up to this separation, flat beyond. 100 m is the
   # CPHEEO Manual on Sewerage and Sewage Treatment Systems (2013, Part A, ch. 5) odour
   # buffer for plants without deodorisation, as quoted in a CPCB reply to the NGT.

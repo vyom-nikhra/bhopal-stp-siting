@@ -617,7 +617,10 @@ def run_sensitivity(cfg: dict, model_name: str = "final") -> dict:
     sc = cfg["sensitivity"]
     base = spec.weights
     layers, cut = model.build_inputs(cfg, crs, grid, spec)
-    select = model.make_selector(layers, cut, cfg, grid, crs, spec)
+    masks = model.build_constraints(cfg, grid, spec)
+    select = model.make_selector(
+        layers, cut, cfg, grid, crs, spec, eligible=masks["eligible"] if masks else None
+    )
 
     baseline = sensitivity.run_weights(layers, base, select)
     reference = (
