@@ -2,6 +2,12 @@
 
 Newest entries at the top. Each entry records what was done, what was verified, and what comes next, so a fresh session can resume from here.
 
+## 2026-10-20: Phase 2 done
+- `python -m stp.cli phase2`: geometry-only reads (pyogrio, `columns=[]`), `gpd.clip`, rasterise on the proximity grid, exact EDT distances, NoData outside the boundary. Writes COGs and GeoParquet (clipped vectors) to `outputs/phase2/`.
+- Parity: clipped vectors identical (counts, length/area, 0 m² symmetric difference); burned pixels identical; distances 99.82–99.97% within 1 cm. The rest are GDAL Proximity overestimates (always QGIS > ours, max 5.72% relative), so the pipeline's values are exact. Details in `docs/parity.md`.
+- 20 unit tests pass; ruff clean. Roads take ~43 s (42,798 lines); the others ~3 s each.
+- **Next (Phase 3):** K-Means land cover. 3a: reproduce the original (k=5, void included), also run on the QGIS stack because of the B11 artefact; match labels to `ML_KMeans_LULC_Bhopal.tif`. 3b: proper mask, choose k.
+
 ## 2026-10-20: Phase 1 done
 - `python -m stp.cli phase1` builds the stack, indices (BOA-offset corrected), clipped DEM and slope as COGs in `outputs/phase1/`, then checks parity against QGIS. Results in `docs/parity.md`.
 - Identical to QGIS: B02/B03/B04/B08, DEM, slope, and both grids.

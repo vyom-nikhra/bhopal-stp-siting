@@ -31,3 +31,31 @@ Impact: about 28% of B11 pixels in the QGIS stack hold the neighbouring 20 m row
 **3. NDVI and MNDWI were saved on the 12.5 m DEM grid.** They were computed in the Raster Calculator with a 12.5 m output grid. Neither GDAL nearest nor bilinear resampling, nor four pixel-centre/corner rounding rules, reproduce QGIS's sampling exactly (best: 46.5% exact). Since these layers are not among the seven scored criteria, they are compared statistically and the investigation stopped there.
 
 **4. The DEM "warp" was a no-op.** The ALOS DEM is already in EPSG:32643 on the output grid, so the pipeline only clips it.
+
+## Phase 2: distance rasters
+
+Reproduce with `python -m stp.cli phase2` (report: `outputs/parity/phase2.json`).
+
+**Clipped vectors** (`gpd.clip` vs QGIS `native:clip`):
+
+| Layer | Features (ours / QGIS) | Total length or area, relative difference | Symmetric difference |
+|---|---|---|---|
+| Roads | 42,798 / 42,798 | −1.3e-16 (length) | |
+| Drainage | 148 / 148 | −1.3e-16 (length) | |
+| Residential | 386 / 386 | 0 (area) | 0 m² |
+| Water | 79 / 79 | 7.5e-16 (area) | 0 m² |
+
+**Rasterised features:** pixels with distance 0 inside the boundary are **identical** for all four layers (e.g. 668,913 road pixels in both).
+
+**Distances:**
+
+| Layer | Mask agree | Exact (≤ 1 cm) | Mean \|d\| | Max \|d\| |
+|---|---|---|---|---|
+| Roads | 1.0000 | 0.9982 | 2.1e-3 m | 2.72 m |
+| Drainage | 1.0000 | 0.9993 | 3.4e-4 m | 2.09 m |
+| Residential | 1.0000 | 0.9997 | 2.1e-4 m | 2.09 m |
+| Water | 1.0000 | 0.9997 | 1.8e-4 m | 2.52 m |
+
+### Finding
+
+**5. GDAL Proximity slightly overestimates distances; the pipeline's are exact.** The pipeline uses `scipy.ndimage.distance_transform_edt`, an exact Euclidean distance transform. GDAL's Proximity uses a faster two-pass scan that approximates the nearest feature. Every one of the 25,844 differing pixels across the four layers has QGIS > ours (none the other way), and the largest relative error is exactly 5.72% in every layer: the fixed worst-case ratio of the approximation, not a data difference. Check: `scripts/diagnose_proximity.py`.
