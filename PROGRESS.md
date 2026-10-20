@@ -2,6 +2,14 @@
 
 Newest entries at the top. Each entry records what was done, what was verified, and what comes next, so a fresh session can resume from here.
 
+## 2026-10-20: Phase 1 done
+- `python -m stp.cli phase1` builds the stack, indices (BOA-offset corrected), clipped DEM and slope as COGs in `outputs/phase1/`, then checks parity against QGIS. Results in `docs/parity.md`.
+- Identical to QGIS: B02/B03/B04/B08, DEM, slope, and both grids.
+- Explained differences: B11 (a QGIS-run artefact; a GDAL 3.13 replay matches ours), NDBI (only where B11 differs), NDVI/MNDWI (QGIS put them on the 12.5 m grid with an unreproduced sampling rule; not scored criteria).
+- Issues hit and fixed: missing JP2 driver (`libgdal-jp2openjpeg`, now in environment.yml); crop rule (GDAL snaps inward, not outward); rasterio decimated reads -> explicit integer-factor pixel duplication.
+- 15 unit tests pass; ruff clean.
+- **Next (Phase 2):** distance rasters on the `proximity_10m` grid (rasterize + EDT), parity vs Raster_05..08. Note: in Phase 3, run the K-Means parity on the QGIS stack as well, because of the B11 artefact.
+
 ## 2026-10-20: Phase 0 done
 - Env `stp` built (Python 3.12.15, GDAL 3.13.3, rasterio 1.5.2, geopandas 1.2.0, osmnx 2.1.1); `scripts/check_env.py` passes.
 - Issue fixed: packages in `%APPDATA%\Python\Python312\site-packages` (old geopandas/shapely built for NumPy 1) shadowed the env and crashed imports. Fixed with the env variable `PYTHONNOUSERSITE=1`. Run things via `conda run -n stp ...` or an activated env (direct `python.exe` calls skip GDAL_DATA/PROJ_DATA).

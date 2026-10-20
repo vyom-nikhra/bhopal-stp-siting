@@ -27,9 +27,12 @@ The source of each fact is marked: **[H]** history, **[D]** data inspection, **[
 | Vector clips | `native:clip` | Each OSM layer clipped to the boundary **[H]** |
 | Slope | `gdal:slope` | Horn, degrees, scale 1 **[H]**. Aspect was also computed but not used |
 
+The ALOS DEM is already in EPSG:32643, so the warp step changed nothing **[D]**. In the QGIS stack, B11 has a row-assignment artefact from that run: see [parity.md](parity.md) **[D]**.
+
 ## 3. Spectral indices (Raster Calculator, not logged)
 
 - NDVI = (B08 − B04) / (B08 + B04); NDBI = (B11 − B08) / (B11 + B08); MNDWI = (B03 − B11) / (B03 + B11) **[R]**
+- Computed on **raw DN**, without the Sentinel-2 `BOA_ADD_OFFSET` of −1000 (NDBI matches raw DN to 1.5e-8) **[D]**.
 - NDBI is on the Sentinel 10 m grid, but **NDVI and MNDWI are on the 12.5 m DEM grid** **[D]**. This was probably the calculator's reference layer at the time.
 - An NDVI-based zone reclass (`Raster_10_LULC_Zones`: ≤0.2→1, ≤0.4→2, ≤1→3) was made but not used **[H]**.
 
