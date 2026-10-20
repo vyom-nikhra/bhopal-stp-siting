@@ -1,6 +1,6 @@
 """Command-line entry point: `python -m stp.cli <command> [--config config.yaml]`.
 
-Commands: phase1, phase2, phase3, phase3k, phase4, phase5, sensitivity, sites
+Commands: phase1, phase2, phase3, phase3k, phase4, phase5, sensitivity, sites, network
 (see `--help`).
 """
 
@@ -19,6 +19,7 @@ from rasterio.crs import CRS
 from stp import (
     io,
     lulc,
+    network,
     overlay,
     parity,
     preprocess,
@@ -783,13 +784,9 @@ def run_sites(cfg: dict) -> gpd.GeoDataFrame:
     s["lon"], s["lat"] = cent.x, cent.y
     ranked = site_stats.rank_sites(s, cfg["sensitivity"]["robust_threshold"])
 
-    ranked.to_parquet(out / "sites_ranked.parquet")
-    ranked.to_crs(4326).to_file(out / "sites_ranked.geojson", driver="GeoJSON")
+    _write_site_table(ranked, out)
     table = ranked.drop(columns="geometry").copy()
     table["area_ha"] = table["area_sqm"] / 1e4
-    num = table.select_dtypes("number").columns
-    table[num] = table[num].round(4)
-    table.to_csv(out / "sites_ranked.csv", index=False)
 
     cols = [
         "rank",
@@ -810,6 +807,61 @@ def run_sites(cfg: dict) -> gpd.GeoDataFrame:
     return ranked
 
 
+def _write_site_table(ranked: gpd.GeoDataFrame, out: Path) -> None:
+    ranked.to_parquet(out / "sites_ranked.parquet")
+    ranked.to_crs(4326).to_file(out / "sites_ranked.geojson", driver="GeoJSON")
+    table = ranked.drop(columns="geometry").copy()
+    table["area_ha"] = table["area_sqm"] / 1e4
+    num = table.select_dtypes("number").columns
+    table[num] = table[num].round(4)
+    table.to_csv(out / "sites_ranked.csv", index=False)
+
+
+def run_network(cfg: dict) -> gpd.GeoDataFrame:
+    """Phase 6d: drivable-network access from each site to the nearest major road."""
+    crs = CRS.from_user_input(cfg["crs"])
+    outputs = Path(cfg["paths"]["output"])
+    out = outputs / "phase6"
+    nc = cfg["network"]
+    src = out / "sites_ranked.parquet"
+    if not src.exists():
+        raise FileNotFoundError(f"{src} missing: run `python -m stp.cli sites` first")
+    ranked = gpd.read_parquet(src)
+
+    boundary = io.read_boundary(cfg["paths"]["boundary"], crs)
+    area = boundary.buffer(nc["boundary_buffer_m"]).to_crs(4326).union_all()
+    t0 = time.perf_counter()
+    g = network.load_drive_graph(area, out / "drive_network.graphml", outputs / "cache", crs)
+    print(
+        f"[network] graph: {g.number_of_nodes()} nodes, {g.number_of_edges()} edges "
+        f"({time.perf_counter() - t0:.0f}s)"
+    )
+    majors = network.major_nodes(g)
+    to_major = network.distance_to_nodes(g, majors)
+    print(f"[network] {len(majors)} major-road nodes; {len(to_major)} nodes can reach one")
+
+    ranked = network.site_access(ranked, g, to_major)
+    ranked["access_total_m"] = ranked["last_mile_m"] + ranked["network_to_major_m"]
+    _write_site_table(ranked, out)
+
+    cols = [
+        "rank",
+        "area_sqm",
+        "road_dist_m_min",
+        "last_mile_m",
+        "network_to_major_m",
+        "access_total_m",
+        "robust",
+    ]
+    print(ranked[cols].head(15).to_string(index=False, float_format=lambda v: f"{v:.0f}"))
+    fin = ranked.loc[ranked["reaches_major"], "access_total_m"]
+    print(
+        f"[network] {int(ranked['reaches_major'].sum())}/{len(ranked)} sites reach a major "
+        f"road; access distance median {fin.median():.0f} m, max {fin.max():.0f} m"
+    )
+    return ranked
+
+
 def main() -> None:
     p = argparse.ArgumentParser(prog="stp")
     p.add_argument("--config", default=str(DEFAULT_CONFIG))
@@ -822,6 +874,7 @@ def main() -> None:
     sub.add_parser("phase5", help="queries, polygons, exclusion buffers, final sites + parity")
     sub.add_parser("sensitivity", help="Phase 6a: weight sensitivity of the corrected result")
     sub.add_parser("sites", help="Phase 6b: per-site statistics and ranked site table")
+    sub.add_parser("network", help="Phase 6d: road-network access per site (osmnx)")
     args = p.parse_args()
     cfg = load_config(args.config)
     if args.cmd == "phase1":
@@ -840,6 +893,8 @@ def main() -> None:
         run_sensitivity(cfg)
     elif args.cmd == "sites":
         run_sites(cfg)
+    elif args.cmd == "network":
+        run_network(cfg)
 
 
 if __name__ == "__main__":

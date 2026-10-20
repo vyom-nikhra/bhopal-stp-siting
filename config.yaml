@@ -170,3 +170,8 @@ sensitivity:
   persistence_cover: 0.5
   # Sites persistent in at least this share of draws are flagged robust.
   robust_threshold: 0.75
+
+network:
+  # Drivable OSM network for the boundary plus this margin (one Overpass request, then
+  # cached as outputs/phase6/drive_network.graphml).
+  boundary_buffer_m: 1000
