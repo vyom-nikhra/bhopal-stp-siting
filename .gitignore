@@ -1,0 +1,35 @@
+# pipeline outputs and local data
+outputs/
+data/
+*.tif
+*.tif.aux.xml
+*.jp2
+*.SAFE/
+*.shp
+*.shx
+*.dbf
+*.prj
+*.cpg
+*.gpkg
+*.parquet
+*.zip
+*.rar
+
+# osmnx cache
+cache/
+
+# python
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.venv/
+venv/
+myenv/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

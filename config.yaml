@@ -1,0 +1,101 @@
+# Pipeline configuration.
+# Every parameter marked "recovered" comes from the original QGIS processing history
+# (%APPDATA%/QGIS/QGIS3/profiles/default/user-history.db) or from inspecting the
+# reference rasters; see docs/qgis_workflow.md. Edit paths for your machine.
+
+paths:
+  # Raw inputs (read-only, never modified by the pipeline)
+  raw_root: "D:/Vyom/GEOTA/Bhopal_STP_Project/01_Raw_Data"
+  sentinel_granule: "D:/Vyom/GEOTA/Bhopal_STP_Project/01_Raw_Data/Sentinel_2/S2B_MSIL2A_20250609T051649_N0511_R062_T43QGF_20250609T075016.SAFE/GRANULE/L2A_T43QGF_A043131_20250609T053024/IMG_DATA"
+  dem: "D:/Vyom/GEOTA/Bhopal_STP_Project/01_Raw_Data/DEM/AP_04940_FBS_F0450_RT1.dem.tif"
+  boundary: "D:/Vyom/GEOTA/Bhopal_STP_Project/01_Raw_Data/Vectors/Planning_Boundary_2031.geojson"
+  vectors_raw: "D:/Vyom/GEOTA/Bhopal_STP_Project/01_Raw_Data/Vectors"
+  # QGIS outputs used as the parity reference (read-only)
+  reference_rasters: "D:/Vyom/GEOTA/Bhopal_STP_Project/02_Processed_Layers/Raster_Data"
+  reference_vectors: "D:/Projects/GEOTA/Final Project/Vector_Data"
+  reference_queries: "D:/Projects/GEOTA/Final Project/Raster_Data"
+  # Pipeline outputs (git-ignored)
+  output: "outputs"
+
+crs: "EPSG:32643"  # WGS 84 / UTM 43N (recovered)
+
+sentinel:
+  tile: "T43QGF"
+  date: "2025-06-09"
+  # Stack order (recovered from Sentinel_Stack.vrt): band index -> Sentinel-2 band
+  bands: ["B02", "B03", "B04", "B08", "B11"]
+  b11_resampling: "nearest"  # 20 m -> 10 m in the VRT (RESAMPLING=0, recovered)
+
+# The three grids the QGIS outputs live on (recovered from reference rasters).
+grids:
+  sentinel_10m:   # Raster_01, NDBI, K-Means, Reclass_ML_LULC, Final suitability map
+    origin: [727980.0, 2592280.0]
+    res: 10.0
+    shape: [3658, 3769]   # rows, cols
+  proximity_10m:  # Raster_05..08 distance rasters and their reclasses
+    origin: [727972.3125, 2592280.25]
+    res: 10.0
+    shape: [3658, 3770]
+  dem_12_5m:      # DEM, slope, NDVI, MNDWI and their reclasses
+    origin: [727972.3125, 2592280.25]
+    res: 12.5
+    shape: [2926, 3016]
+
+dem:
+  resampling: "bilinear"  # gdal:warpreproject RESAMPLING=1 (recovered)
+  nodata: 0
+
+slope:
+  algorithm: "horn"   # ZEVENBERGEN=False (recovered)
+  units: "degrees"
+
+proximity:
+  # Rasterise each layer (burn=1) on proximity_10m, then distance in georeferenced units (recovered)
+  layers:
+    roads: "Roads_Bhopal"
+    drainage: "Natural_Drainage_Bhopal"
+    residential: "Landuse_Residential_Bhopal"
+    water: "Natural_Water_Bhopal"
+
+lulc:
+  n_clusters: 5
+  random_state: 42
+  batch_size: 2048
+  # K-Means class -> suitability score (recovered reclass table). Class 2 was the
+  # out-of-boundary void because the original NoData mask never matched.
+  reclass: {1: 2, 2: null, 3: 10, 4: 3, 5: 1}
+
+standardize:
+  # r.rescale to 1..10 over each layer's own min..max (recovered); "invert" = 11 - x
+  # (confirmed from data: corr(raw, reclass) < 0 and |reclass - (11 - linear)| <= 0.6)
+  roads:       {method: "linear", invert: true}
+  drainage:    {method: "linear", invert: true}
+  residential: {method: "linear", invert: false}
+  water:       {method: "linear", invert: false}
+  dem:         {method: "linear", invert: true}
+  slope:       {method: "unknown"}  # TODO Phase 4: reconstruct from Reclass_10_Slope (values 3..10)
+
+weights:  # from the report's Raster Calculator expression (not logged in history)
+  residential: 0.25
+  water: 0.20
+  drainage: 0.15
+  slope: 0.12
+  roads: 0.10
+  lulc: 0.10
+  dem: 0.08
+
+selection:
+  suitability_min: 8.0       # Query 1
+  lulc_required: 10          # Query 2 (barren)
+  roads_score_min: 7         # Query 3
+  polygonize_connectivity: 4 # EIGHT_CONNECTEDNESS=False (recovered)
+  buffer_m: 500              # schools + hospitals (recovered)
+  buffer_segments: 30        # (recovered)
+  min_area_sqm: 5000
+  # Original order was area filter -> difference; the pipeline uses difference -> area filter.
+  exclusion_layers: ["Schools_Bhopal", "Hospital_Bhopal"]
+
+parity:  # reference numbers the pipeline is checked against
+  final_sites: 46
+  final_area_sqm: 1254202
+  suitability_range: [3.42, 8.48]

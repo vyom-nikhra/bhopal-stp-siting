@@ -1,0 +1,39 @@
+name: stp
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  # raster
+  - gdal
+  - rasterio
+  - rioxarray
+  - xarray
+  - numpy
+  - scipy
+  - rasterstats
+  # vector
+  - geopandas
+  - pyogrio
+  - shapely
+  - pyproj
+  - pyarrow
+  - osmnx
+  # analysis / ML
+  - scikit-learn
+  # viz and apps
+  - matplotlib
+  - streamlit
+  - folium
+  - streamlit-folium
+  - plotly
+  - fastapi
+  - uvicorn
+  - earthengine-api
+  # tooling
+  - pyyaml
+  - ipykernel
+  - pytest
+  - ruff
+  - pip
+  - pip:
+      - -e .
