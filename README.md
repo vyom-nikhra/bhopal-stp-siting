@@ -115,7 +115,11 @@ python -m stp.cli crosscheck    # WorldCover, Esri IO, Dynamic World per site + 
 python -m stp.cli review        # field-check sheet
 ```
 
-`python -m pytest` runs the unit tests (synthetic data; no downloads). `PROGRESS.md` is the step-by-step log, and `docs/parity.md` has every finding with its evidence.
+`python -m pytest` runs the unit tests (synthetic data; no downloads; also run in GitHub Actions with ruff). `PROGRESS.md` is the step-by-step log, and `docs/parity.md` has every finding with its evidence.
+
+**Apps:**
+- `streamlit run apps/dashboard/app.py`: explore the final sites. Includes filters (robust only, minimum area, land-cover verdict, road access), a map, a table and a chart. Needs the outputs of `final`, `sites`, `network` and `crosscheck`.
+- `apps/auto_stp/`: the original GEOTA web app (FastAPI + Streamlit), ported. Draw any area; it applies the final model's Dynamic World rules, the slope limit, the OSM exclusions and the plant footprint. See its [README](apps/auto_stp/README.md) for what was fixed.
 
 **Layout:**
 - `src/stp/`: the pipeline.

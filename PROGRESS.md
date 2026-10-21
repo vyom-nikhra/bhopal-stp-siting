@@ -2,6 +2,14 @@
 
 Newest entries at the top. Each entry records what was done, what was verified, and what comes next, so a fresh session can resume from here.
 
+## 2026-10-21: Phase 7 apps + Phase 8 CI
+- Docs: README rewritten, docs/parity.md final-model section, figures (commit 643a70b).
+- `apps/dashboard/app.py` (Streamlit + folium + plotly): verified in the browser. All filters off: 66 sites, 233.8 ha. "Robust only": 58 sites, 223.4 ha. AppTest smoke test in tests/test_apps.py (skips without outputs).
+- `apps/auto_stp/` ported from GEOTA Auto_STP_Platform. Changes: Dynamic World 12-month eligibility in place of NDVI/NDBI; OSM errors raise (HTTP 502); osmnx 2 bbox order; EE initialised at startup from STP_EE_PROJECT; no bestEffort and no silent truncation; sync endpoint; ellipsoidal area; 0.56 ha minimum. 10 mocked tests in tests/test_auto_stp.py.
+- Live runs: EE on an ~800 m box around a final site gave 46% open land and 24 polygons. End-to-end gave 502 "OSM error" because Overpass is still unreachable (connect timeout). That is the intended behaviour; a full live success is still unverified.
+- CI: `.github/workflows/ci.yml` (micromamba from environment.yml, ruff check + format, `pytest -m "not needs_data"`). Added httpx to environment.yml and `pythonpath = ["."]` to pyproject. Locally 82 passed; first GitHub Actions run (39562987047) green: lint + tests.
+- **Next / open:** `crosscheck-osm` then `review` once Overpass is reachable; the user's cross-verification of review/site_check.csv.
+
 ## 2026-10-21: Constraints from 12-month Dynamic World (final model revised)
 - Overpass: one of overpass-api.de's two IPv4 addresses (65.109.112.52) is unreachable from this network; `stp.net.prefer_reachable` pins the working one. Python connections to 162.55.144.139 still timed out while curl connected, and a curl query got 406 without a descriptive User-Agent and later timed out too (possible rate limiting). `crosscheck-osm` NOT run; retry later.
 - `stp.dynamic_world`: per-pixel mode / built_pct / water_pct over 2024-06-10..2025-06-10 (141 images), grid-exact downloads (region + crs_transform). City: crops 47.4%, built 32.3%, trees 9.9%, water 5.0%, scrub 3.6%, grass 0.3%, bare 0.2%. The old 44 sites were 84.7% crops / 13.7% built by yearly mode.
@@ -67,7 +75,7 @@ Newest entries at the top. Each entry records what was done, what was verified, 
 
 ## 2026-10-20: Phase 2 done
 - `python -m stp.cli phase2`: geometry-only reads (pyogrio, `columns=[]`), `gpd.clip`, rasterise on the proximity grid, exact EDT distances, NoData outside the boundary. Writes COGs and GeoParquet (clipped vectors) to `outputs/phase2/`.
-- Parity: clipped vectors identical (counts, length/area, 0 m² symmetric difference); burned pixels identical; distances 99.82–99.97% within 1 cm. The rest are GDAL Proximity overestimates (always QGIS > ours, max 5.72% relative), so the pipeline's values are exact. Details in `docs/parity.md`.
+- Parity: clipped vectors identical (counts, length/area, 0 m?? symmetric difference); burned pixels identical; distances 99.82???99.97% within 1 cm. The rest are GDAL Proximity overestimates (always QGIS > ours, max 5.72% relative), so the pipeline's values are exact. Details in `docs/parity.md`.
 - 20 unit tests pass; ruff clean. Roads take ~43 s (42,798 lines); the others ~3 s each.
 - **Next (Phase 3):** K-Means land cover. 3a: reproduce the original (k=5, void included), also run on the QGIS stack because of the B11 artefact; match labels to `ML_KMeans_LULC_Bhopal.tif`. 3b: proper mask, choose k.
 
@@ -88,7 +96,7 @@ Newest entries at the top. Each entry records what was done, what was verified, 
 ## 2026-10-20: Phase 0 started
 - Created the repo with `PLAN.md`, `config.yaml`, `environment.yml`, `pyproject.toml` and `docs/qgis_workflow.md`.
 - Recovered the QGIS parameters from `user-history.db` (63 runs) and from inspecting the rasters; see `docs/qgis_workflow.md`.
-- Verified reference numbers: 46 final sites / 1,254,202 m²; suitability range 3.42–8.48 (later corrected to 3.06–8.48 at full resolution).
+- Verified reference numbers: 46 final sites / 1,254,202 m??; suitability range 3.42???8.48 (later corrected to 3.06???8.48 at full resolution).
 - **Next:** build the conda env (`conda env create -f environment.yml`), check imports, then start Phase 1.
 - Repo published: https://github.com/vyom-nikhra/bhopal-stp-siting (public).
 - Planning boundary source: DataMeet Municipal_Spatial_Data, CC BY 4.0 (attributed in the README).
