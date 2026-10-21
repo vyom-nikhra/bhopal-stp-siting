@@ -2,6 +2,11 @@
 
 Newest entries at the top. Each entry records what was done, what was verified, and what comes next, so a fresh session can resume from here.
 
+## 2026-10-21: License, badge, Overpass setting
+- MIT LICENSE (pyproject `license = "MIT"`, setuptools >= 77); CI and license badges in the README; README "Future work" holds the high-resolution site check (user's call: later) and a riparian setback.
+- Auto-STP: `AUTO_STP_OVERPASS_URL` sets the Overpass endpoint at startup (`osm_pipeline.use_overpass`); the reachability probe follows its host. A failure still returns 502. 86 tests pass; CI green on 0fb991c.
+- **Left for the user:** QGIS map layouts (step-by-step given in chat) and the optional Streamlit Cloud deploy. The deploy needs a small data bundle plus a dashboard change first: the dashboard reads the boundary and lakes from D:/Vyom paths.
+
 ## 2026-10-21: OSM land-use cross-check done (local extract)
 - Overpass diagnosis: from the college network (NKN, AS55824), 65.109.112.52 was unreachable (routing). From the user's other network it connects. Both networks: overpass-api.de answered 502 "at capacity, all query workers are busy", and tiny queries took 40-54 s. The server asks automated users to run their own instance.
 - `crosscheck-osm` now reads `crosscheck.osm_pbf` (config.yaml) with GDAL's OSM driver (`stp.crosscheck.read_osm_landuse`, multipolygons layer). File: OSM France `madhya_pradesh.osm.pbf` dated 2026-10-21 01:08 UTC, 142,031,785 bytes, MD5 edf753d9a27536f0e5f9b3d9ccd07a0f, saved as `D:/Vyom/GEOTA/Bhopal_STP_Project/01_Raw_Data/OSM/madhya_pradesh-2026-10-21.osm.pbf`. The first download was cut off by a network switch (118.5 MB, curl exit 0); it was resumed and MD5-verified. Geofabrik's server hung after TLS on both networks.
