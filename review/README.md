@@ -17,7 +17,7 @@ The earlier 44-site sheet and labels (before the constraints) are in `archive/`.
 - `esri_io_2023`: Esri / Impact Observatory 10 m land cover, 2023
 - `dynamic_world`: Google Dynamic World for the same Sentinel-2 scene (2025-06-09)
 - `product_verdict`: majority of the three: `likely_farmland`, `likely_built`, `likely_water`, `likely_trees`, `consistent_open_land`, or `mixed`
-- `osm_landuse`: largest OSM `landuse` overlaps (`python -m stp.cli crosscheck-osm`; "not fetched" until Overpass is reachable)
+- `osm_landuse`: largest OSM `landuse` overlaps (`python -m stp.cli crosscheck-osm`, from a local OSM extract). "none" means no mapped land use touches the site, which is true of all 66: OSM maps land use over only 15% of Bhopal, mostly residential.
 
 **Claude's visual labels** (`claude_cover`, `claude_usable`, `claude_confidence`, `claude_notes`): from true- and false-colour Sentinel-2 chips at 10 m (`outputs/final/chips/`), not high-resolution imagery. Coarse: confidence is `low` except where a site is clearly inside a settlement.
 

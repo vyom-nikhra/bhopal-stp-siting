@@ -2,6 +2,12 @@
 
 Newest entries at the top. Each entry records what was done, what was verified, and what comes next, so a fresh session can resume from here.
 
+## 2026-10-21: OSM land-use cross-check done (local extract)
+- Overpass diagnosis: from the college network (NKN, AS55824), 65.109.112.52 was unreachable (routing). From the user's other network it connects. Both networks: overpass-api.de answered 502 "at capacity, all query workers are busy", and tiny queries took 40-54 s. The server asks automated users to run their own instance.
+- `crosscheck-osm` now reads `crosscheck.osm_pbf` (config.yaml) with GDAL's OSM driver (`stp.crosscheck.read_osm_landuse`, multipolygons layer). File: OSM France `madhya_pradesh.osm.pbf` dated 2026-10-21 01:08 UTC, 142,031,785 bytes, MD5 edf753d9a27536f0e5f9b3d9ccd07a0f, saved as `D:/Vyom/GEOTA/Bhopal_STP_Project/01_Raw_Data/OSM/madhya_pradesh-2026-10-21.osm.pbf`. The first download was cut off by a network switch (118.5 MB, curl exit 0); it was resumed and MD5-verified. Geofabrik's server hung after TLS on both networks.
+- Result: 727 land-use polygons cover 15% of the city (399 residential, 7 farmland). 0/66 sites overlap any (nearest 124 m, median 3.1 km). The CRS was checked, so the zero is real: OSM is no evidence either way. Review sheet regenerated; `osm_landuse` = "none" (was "not fetched"), no other column changed. Tests: tests/test_crosscheck.py (tiny .osm XML).
+- `stp.net.prefer_reachable` is still used by `network` and the Auto-STP app.
+
 ## 2026-10-21: Phase 7 apps + Phase 8 CI
 - Docs: README rewritten, docs/parity.md final-model section, figures (commit 643a70b).
 - `apps/dashboard/app.py` (Streamlit + folium + plotly): verified in the browser. All filters off: 66 sites, 233.8 ha. "Robust only": 58 sites, 223.4 ha. AppTest smoke test in tests/test_apps.py (skips without outputs).

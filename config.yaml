@@ -239,3 +239,7 @@ crosscheck:
   dynamic_world_date: "2025-06-09" # same Sentinel-2 scene as the analysis
   ee_project: "auto-stp-bhopal"    # Earth Engine project (user's)
   chip_pad_m: 300                  # context around each site in the visual chips
+  # OSM land use for `crosscheck-osm`: OpenStreetMap France extract of Madhya Pradesh,
+  # https://download.openstreetmap.fr/extracts/asia/india/madhya_pradesh.osm.pbf
+  # (downloaded 2026-10-21; file dated 2026-10-21 01:08 UTC; MD5-checked)
+  osm_pbf: "D:/Vyom/GEOTA/Bhopal_STP_Project/01_Raw_Data/OSM/madhya_pradesh-2026-10-21.osm.pbf"

@@ -141,6 +141,27 @@ def verdict(dominants: list[str]) -> str:
     return "mixed"
 
 
+def read_osm_landuse(pbf: Path, area) -> gpd.GeoDataFrame:
+    """OSM `landuse=*` areas intersecting `area` (EPSG:4326), from an .osm.pbf extract.
+
+    GDAL's OSM driver puts closed ways and multipolygon relations tagged as areas in its
+    `multipolygons` layer, with `landuse` as a column (default osmconf.ini).
+    """
+    import pyogrio
+
+    if not pbf.exists():
+        raise FileNotFoundError(f"{pbf} missing: download the extract named in config.yaml")
+    lu = pyogrio.read_dataframe(
+        pbf,
+        layer="multipolygons",
+        columns=["landuse"],
+        bbox=tuple(area.bounds),
+        where="landuse IS NOT NULL",
+    )
+    lu = lu.set_crs(4326, allow_override=True) if lu.crs is None else lu.to_crs(4326)
+    return lu[lu.intersects(area)].reset_index(drop=True)
+
+
 def osm_landuse_overlap(sites: gpd.GeoDataFrame, landuse: gpd.GeoDataFrame) -> list[dict]:
     """Per site: share of its area under each OSM `landuse` value (planar, site CRS)."""
     lu = landuse[["landuse", "geometry"]].to_crs(sites.crs)
@@ -315,10 +336,11 @@ def run_crosscheck(cfg: dict, model_name: str = "final") -> gpd.GeoDataFrame:
 
 
 def run_crosscheck_osm(cfg: dict, model_name: str = "final") -> gpd.GeoDataFrame:
-    """Add OSM land-use overlap to the cross-check (one Overpass request, cached).
+    """Add OSM land-use overlap to the cross-check, from a local OSM extract (.osm.pbf).
 
-    Separate from `crosscheck` because Overpass is sometimes unreachable from this
-    network; a failure raises, and the other evidence is unaffected.
+    Separate from `crosscheck` so the other evidence doesn't depend on OSM. A local
+    extract replaced the Overpass API: the public server was at capacity ("all query
+    workers are busy") and asks automated users not to use it.
     """
     outputs = Path(cfg["paths"]["output"])
     out = outputs / model.get_spec(cfg, model_name).out_dir
@@ -326,25 +348,16 @@ def run_crosscheck_osm(cfg: dict, model_name: str = "final") -> gpd.GeoDataFrame
     if not src.exists():
         raise FileNotFoundError(f"{src} missing: run `python -m stp.cli crosscheck` first")
     sites = gpd.read_parquet(src)
-    lu_path = outputs / "crosscheck" / "osm_landuse.parquet"
-    if not lu_path.exists():
-        import osmnx as ox
-
-        from stp.net import prefer_reachable
-
-        print(
-            f"[crosscheck-osm] overpass-api.de reachable via {prefer_reachable('overpass-api.de')}"
-        )
-        poly = io.read_boundary(cfg["paths"]["boundary"], 4326).union_all()
-        lu = ox.features_from_polygon(poly, tags={"landuse": True})
-        lu_path.parent.mkdir(parents=True, exist_ok=True)
-        lu[["landuse", "geometry"]].reset_index(drop=True).to_parquet(lu_path)
-    landuse = gpd.read_parquet(lu_path)
+    pbf = Path(cfg["crosscheck"]["osm_pbf"])
+    boundary = io.read_boundary(cfg["paths"]["boundary"], 4326)
+    landuse = read_osm_landuse(pbf, boundary.union_all())
     osm = osm_landuse_overlap(sites, landuse)
-    sites["osm_landuse"] = ["; ".join(f"{k} {v:.0%}" for k, v in list(d.items())[:3]) for d in osm]
+    sites["osm_landuse"] = [
+        "; ".join(f"{k} {v:.0%}" for k, v in list(d.items())[:3]) or "none" for d in osm
+    ]
     sites.to_parquet(src)
     print(
-        f"[crosscheck-osm] {len(landuse)} OSM landuse polygons; "
-        f"{int((sites['osm_landuse'] != '').sum())}/{len(sites)} sites overlap one -> {src}"
+        f"[crosscheck-osm] {pbf.name}: {len(landuse)} OSM landuse polygons; "
+        f"{int((sites['osm_landuse'] != 'none').sum())}/{len(sites)} sites overlap one -> {src}"
     )
     return sites

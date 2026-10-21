@@ -89,7 +89,7 @@ Together these leave **3.3% of the city** eligible.
 - The flood proxy doesn't capture narrow riverbanks. No sourced riparian setback distance was found, so riverside sites are flagged in the review sheet instead.
 - Land per MLD rests on three measured plants. The 100 m buffer is quoted from a CPCB filing; the CPHEEO manual itself couldn't be retrieved.
 - About 31 sites remain uncertain between open land and occasionally cropped land; the review sheet is meant to resolve them.
-- The OSM land-use cross-check (`crosscheck-osm`) hasn't run yet: Overpass was unreachable from the author's network during development (one of its two servers is unreachable from there, and the other timed out).
+- OSM land use is no help as a site check. Mapped land use covers only 15% of the city (mostly residential; just 7 farmland polygons), and none of it touches any of the 66 sites (nearest polygon 124 m, median 3.1 km). The check reads a local OSM extract because the public Overpass API was at capacity and asks automated users not to use it.
 
 ## Running it
 
@@ -112,6 +112,7 @@ python -m stp.cli sensitivity   # weight sensitivity
 python -m stp.cli sites         # per-site statistics and ranking
 python -m stp.cli network       # drivable-network access (osmnx, one cached download)
 python -m stp.cli crosscheck    # WorldCover, Esri IO, Dynamic World per site + image chips
+python -m stp.cli crosscheck-osm  # OSM land-use overlap (local .osm.pbf extract, see config.yaml)
 python -m stp.cli review        # field-check sheet
 ```
 
@@ -133,7 +134,7 @@ python -m stp.cli review        # field-check sheet
 
 - Sentinel-2 MSI L2A, tile T43QGF, 9 June 2025: [Copernicus Data Space Ecosystem](https://dataspace.copernicus.eu/)
 - ALOS PALSAR RTC DEM (AP_04940_FBS_F0450_RT1): [ASF DAAC](https://search.asf.alaska.edu/)
-- Roads, water, drainage, land use, schools, hospitals, drivable network: © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright) (ODbL)
+- Roads, water, drainage, land use, schools, hospitals, drivable network: © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright) (ODbL). The land-use cross-check uses the [OpenStreetMap France Madhya Pradesh extract](https://download.openstreetmap.fr/extracts/asia/india/) of 2026-10-21
 - Planning boundary 2031: [Bhopal Planning Boundary 2031](https://github.com/datameet/Municipal_Spatial_Data/blob/master/Bhopal/Planning_%20Boundary_%202031.geojson) by [DataMeet India community](http://datameet.org/) ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/))
 - [Google Dynamic World V1](https://dynamicworld.app/), via Google Earth Engine
 - [ESA WorldCover 10 m 2021 v200](https://esa-worldcover.org/)
