@@ -29,6 +29,7 @@ dependencies:
   - plotly
   - fastapi
   - uvicorn
+  - httpx
   - earthengine-api
   # tooling
   - pyyaml

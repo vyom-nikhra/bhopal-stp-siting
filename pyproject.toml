@@ -14,6 +14,7 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 markers = ["needs_data: requires the local raw/reference data from config.yaml"]
 # Tests fit K-Means on a few hundred points (one chunk), which triggers sklearn's
 # Windows/MKL memory-leak warning; real runs use millions of pixels and many chunks.
