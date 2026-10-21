@@ -20,6 +20,11 @@ STP_EE_PROJECT=<your-ee-project> uvicorn apps.auto_stp.backend.main:app
 AUTO_STP_BACKEND=http://127.0.0.1:8000 streamlit run apps/auto_stp/frontend/app.py
 ```
 
+Optional: set `AUTO_STP_OVERPASS_URL` to use another Overpass API endpoint, e.g. a mirror or
+your own instance. The default, `https://overpass-api.de/api`, is often at capacity and asks
+automated users to run their own. If the endpoint fails, the request still returns 502;
+there is no automatic switch to another server.
+
 Run both from the repo root, in the `stp` environment. On Windows PowerShell, set the
 variables first with `$env:STP_EE_PROJECT = "..."`.
 
@@ -38,9 +43,10 @@ variables first with `$env:STP_EE_PROJECT = "..."`.
 
 ## Verified
 
-- `tests/test_auto_stp.py`: 10 tests. Earth Engine and OSM are mocked. They cover exclusion
+- `tests/test_auto_stp.py`: 12 tests. Earth Engine and OSM are mocked. They cover exclusion
   and minimum-area filtering, per-site area in the GeoJSON, a 502 when OSM fails, a 422 when
-  there are too many polygons, the bbox order, startup without a project, and a frontend
+  there are too many polygons, the bbox order, startup without a project, the Overpass URL
+  setting, and a frontend
   render.
 - Live Earth Engine run (2026-10-21) on an ~800 m box around one of the final model's
   sites: 46% open land, 24 candidate polygons.

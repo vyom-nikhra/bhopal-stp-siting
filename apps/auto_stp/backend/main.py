@@ -2,6 +2,7 @@
 
 Run from the repo root (needs Earth Engine credentials and Overpass access):
     STP_EE_PROJECT=<your-project> uvicorn apps.auto_stp.backend.main:app
+Optional: AUTO_STP_OVERPASS_URL=<Overpass API base URL> (default https://overpass-api.de/api).
 
 Changes from the original app:
 - Earth Engine is initialised once at startup.
@@ -35,6 +36,8 @@ logger = logging.getLogger("auto_stp")
 
 _model = load_config()["model"]
 MIN_AREA_SQM = _model["plant_capacity_mld"] * _model["land_ha_per_mld"] * 1e4
+DEFAULT_OVERPASS_URL = "https://overpass-api.de/api"
+overpass_host = ""  # set at startup from AUTO_STP_OVERPASS_URL
 
 
 @asynccontextmanager
@@ -42,6 +45,10 @@ async def lifespan(_app: FastAPI):
     project = os.environ.get("STP_EE_PROJECT")
     if not project:
         raise RuntimeError("Set STP_EE_PROJECT to your Earth Engine project id")
+    global overpass_host
+    overpass_host = osm_pipeline.use_overpass(
+        os.environ.get("AUTO_STP_OVERPASS_URL", DEFAULT_OVERPASS_URL)
+    )
     gee_pipeline.init_earth_engine(project)
     yield
 
@@ -97,7 +104,7 @@ def analyze_region(payload: AnalyzeRequest) -> AnalyzeResponse:
     candidates = gpd.GeoDataFrame.from_features(candidate_fc["features"], crs="EPSG:4326")
 
     try:
-        prefer_reachable("overpass-api.de")
+        prefer_reachable(overpass_host)
         exclusion = osm_pipeline.get_exclusion_zones(ring)
     except Exception as exc:
         logger.exception("OSM step failed")

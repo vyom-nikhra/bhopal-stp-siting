@@ -12,6 +12,7 @@ Changes from the original app:
 from __future__ import annotations
 
 import logging
+from urllib.parse import urlparse
 
 import geopandas as gpd
 import osmnx as ox
@@ -22,6 +23,20 @@ logger = logging.getLogger(__name__)
 
 TAG_SETS = ({"amenity": ["school", "hospital", "clinic"]}, {"natural": "water"})
 BUFFER_M = 500
+
+
+def use_overpass(url: str) -> str:
+    """Point osmnx at an Overpass API endpoint (e.g. a mirror or your own instance).
+
+    Returns the endpoint's host name. The public overpass-api.de is often at capacity
+    and asks automated users to run their own instance.
+    """
+    host = urlparse(url).hostname
+    if not host:
+        raise ValueError(f"Not a URL: {url!r} (expected e.g. https://overpass-api.de/api)")
+    ox.settings.overpass_url = url.rstrip("/")
+    logger.info("Overpass endpoint: %s", ox.settings.overpass_url)
+    return host
 
 
 def _fetch(bbox: tuple[float, float, float, float], tags: dict) -> gpd.GeoDataFrame | None:

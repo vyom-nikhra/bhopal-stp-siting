@@ -28,6 +28,35 @@ def client(monkeypatch):
         yield c
 
 
+def test_overpass_url_from_env(monkeypatch):
+    import osmnx as ox
+
+    monkeypatch.setattr(ox.settings, "overpass_url", ox.settings.overpass_url)  # restore after
+    monkeypatch.setenv("STP_EE_PROJECT", "test-project")
+    monkeypatch.setenv("AUTO_STP_OVERPASS_URL", "https://overpass.example.org/api/")
+    monkeypatch.setattr(main.gee_pipeline, "init_earth_engine", lambda project: None)
+    probed = []
+    monkeypatch.setattr(main, "prefer_reachable", probed.append)
+    monkeypatch.setattr(main.gee_pipeline, "get_suitable_pixels", lambda ring, end_date: _fc(BIG))
+    monkeypatch.setattr(
+        main.osm_pipeline,
+        "get_exclusion_zones",
+        lambda ring: gpd.GeoDataFrame(geometry=[], crs="EPSG:4326"),
+    )
+    with TestClient(main.app) as c:
+        assert c.post("/analyze_region", json={"coordinates": [RING]}).status_code == 200
+    assert ox.settings.overpass_url == "https://overpass.example.org/api"
+    assert probed == ["overpass.example.org"]
+
+
+def test_bad_overpass_url_fails_startup(monkeypatch):
+    monkeypatch.setenv("STP_EE_PROJECT", "test-project")
+    monkeypatch.setenv("AUTO_STP_OVERPASS_URL", "overpass-api.de")
+    with pytest.raises(ValueError, match="Not a URL"):
+        with TestClient(main.app):
+            pass
+
+
 def _mock(monkeypatch, candidates, exclusion):
     monkeypatch.setattr(main.gee_pipeline, "get_suitable_pixels", lambda ring, end_date: candidates)
     monkeypatch.setattr(main.osm_pipeline, "get_exclusion_zones", lambda ring: exclusion)

@@ -1,5 +1,7 @@
 # Bhopal STP Siting
 
+[![CI](https://github.com/vyom-nikhra/bhopal-stp-siting/actions/workflows/ci.yml/badge.svg)](https://github.com/vyom-nikhra/bhopal-stp-siting/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Where could Bhopal, the "City of Lakes", put its **decentralised sewage treatment plants (STPs)**? This project answers that with a multi-criteria GIS analysis of Sentinel-2 imagery, an ALOS PALSAR elevation model, OpenStreetMap and Google Dynamic World.
 
 It started as a QGIS coursework analysis. This repo **rebuilds that analysis as a reproducible Python pipeline, reproduces the QGIS result exactly, and then uses the pipeline to find and fix the analysis's weaknesses**. The final model selects **66 sites (234 ha) on open, non-agricultural land**, away from settlements, schools, hospitals and lakes.
@@ -130,6 +132,11 @@ python -m stp.cli review        # field-check sheet
 - `review/`: the site-check sheet.
 - `apps/`: the dashboard and web app.
 
+## Future work
+
+- **High-resolution field check.** `review/site_check.csv` is pre-filled with every automated check; a person still needs to inspect the sites on high-resolution imagery. That matters most for the 31 sites marked `likely_farmland` and for S35 and S43. This would be the project's only real ground truth.
+- **Riparian setback.** The flood proxy misses narrow riverbanks. A sourced setback distance would turn the review-sheet flag into a constraint.
+
 ## Data sources
 
 - Sentinel-2 MSI L2A, tile T43QGF, 9 June 2025: [Copernicus Data Space Ecosystem](https://dataspace.copernicus.eu/)
@@ -140,4 +147,4 @@ python -m stp.cli review        # field-check sheet
 - [ESA WorldCover 10 m 2021 v200](https://esa-worldcover.org/)
 - [Esri / Impact Observatory 10 m annual land cover](https://planetarycomputer.microsoft.com/dataset/io-lulc-annual-v02), via Microsoft Planetary Computer
 
-Data is not included in this repo; check each provider's licence before reuse.
+Data is not included in this repo; check each provider's licence before reuse. The code is MIT-licensed ([LICENSE](LICENSE)).
