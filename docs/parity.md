@@ -283,3 +283,63 @@ Robust core (pixels selected in ≥ t of the 300 sensitivity draws, then the sam
 | DEM | 0.080 | 0.074 |
 
 Consistency ratio CR = 0.0099 (acceptable below 0.10); the geometric-mean method agrees to 0.002. With the draft AHP weights: ≥ 8 rule → 38 sites, 219.2 ha (IoU 0.49 with the original-weight sites); top 0.3395% → 34 sites, 233.3 ha. 15 of the 20 robust sites are kept under both rules.
+
+## Final model
+
+Decided with the author on 2026-10-20/21. `python -m stp.cli final`; config section `model:`; code `stp.model`. Phases 1–5 keep the original setup so their parity checks still hold.
+
+### Decisions and their sources
+
+| Decision | Value | Source / evidence |
+|---|---|---|
+| Weights | AHP (CR 0.0099), lake distance 0.333 highest | `ahp_judgements.yaml`, reviewed and approved by the author |
+| Residential distance | rescaled only up to 100 m, flat beyond | CPHEEO Manual on Sewerage and Sewage Treatment Systems (2013), Part A ch. 5, 100 m odour buffer without deodorisation, as quoted in a CPCB reply to the NGT. Before the cap, all 59 corrected sites were 2.1–7.6 km from mapped housing |
+| Minimum site area | 5,588 m² = 12.7 MLD × 0.044 ha/MLD | Mean of Bhopal's six AMRUT 2.0 Package 3 plants; largest of three measured Indian plant footprints (Saxena, SuSanA) |
+| Selection | best eligible pixels, as many as the top 0.3395% of all valid pixels | Phase 6e: a relative cut keeps the selected area stable under weight changes |
+| Constraints | yearly Dynamic World mode ∈ {grass, scrub, bare}; built ≥ 50% + 100 m; water ≥ 10% | Below |
+
+### Finding 17: the "barren" land was mostly fallow farmland
+
+The first final-model run (AHP, cap, top 0.34%, no constraints) gave 44 sites (294 ha). An independent cross-check (`python -m stp.cli crosscheck`) put most of them on the wrong kind of land:
+
+| Product | Crops | Built | Other |
+|---|---|---|---|
+| ESA WorldCover 2021 | 38 | 0 | 6 |
+| Esri / Impact Observatory 2023 | 38 | 6 | 0 |
+| Dynamic World (same scene, 2025-06-09) | 32 | 12 | 0 |
+
+By majority: 36 likely farmland, 6 likely built-up, 0 open land. A visual check of Sentinel-2 chips found 8 sites inside settlements that OSM doesn't map as residential, and about 14 on riverbanks. Over the full year, the same 44 sites were 84.7% cropland and 13.7% built-up by Dynamic World's per-pixel mode (`scripts/explore_dynamic_world.py`).
+
+**Cause.** A single pre-monsoon (June) scene can't tell fallow fields from open land, and OSM's residential polygons miss many villages.
+
+**Fix.** Hard constraints from 12 months of Dynamic World (2024-06-10 to 2025-06-10, 141 images), applied **before** ranking:
+
+| Constraint | Rule | Share of the city |
+|---|---|---|
+| Eligible land cover | yearly mode is grass (2), shrub and scrub (5) or bare (7) | 4.1% |
+| Settlement zone | built in ≥ 50% of observations, + 100 m | 53.3% |
+| Flood proxy | water in ≥ 10% of observations | 6.3% |
+| **Eligible after all three** | | **3.3%** |
+
+City-wide yearly mode: crops 47.4%, built 32.3%, trees 9.9%, water 5.0%, scrub 3.6%, flooded vegetation 1.2%, grass 0.3%, bare 0.2%.
+
+### Result
+
+66 sites, 233.8 ha. Cut-off 7.446 among eligible pixels; site sizes 0.57–21.3 ha (median 1.9 ha). Overlap with the original 46 QGIS sites: IoU 0.006.
+
+| Check | Result |
+|---|---|
+| Weight sensitivity (300 draws, ±20%) | sites 59–68; IoU with baseline median 0.906 (p5 0.811); 58/66 sites persistent in ≥ 75% of draws, 51/66 in ≥ 90% |
+| One-at-a-time ±20% | residential, roads and slope: no change (IoU ≥ 0.997); water: IoU 0.78–0.83; drainage: IoU 0.87–0.88 |
+| Independent land cover | WorldCover 62/66 open land; Esri 35/66; single-scene Dynamic World 12/66. Majority: 35 open land, 31 likely farmland, 0 built |
+| Visual check (Sentinel-2, 10 m) | 9 yes, 2 no (S35/S43: a facility with regular rows), 55 unsure |
+| Road access | all 66 reach a major road; total access median 1.85 km, max 8.8 km; last mile median 276 m |
+| Schools / hospitals | closest site 564 m from a school, 610 m from a hospital |
+
+The stability is partly a **ceiling effect**: the top tier is saturated (score 10) on the capped residential criterion, lake distance and land cover, so changing those weights doesn't reorder it.
+
+The single-scene Dynamic World "crops" calls drive most of the 31 "likely farmland" verdicts. That scene is the source shown above to confuse fallow fields with open land, so these 31 sites are best treated as uncertain rather than rejected.
+
+**Remaining limitations.**
+- The water-frequency proxy misses narrow riverbanks (only 0.9% of the first run's site pixels had water ≥ 10%), and no sourced riparian setback was available.
+- The OSM land-use cross-check is pending because Overpass was unreachable from the author's network: one of its two IPv4 servers is unreachable from there, and the other timed out.
