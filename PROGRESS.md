@@ -75,7 +75,7 @@ Newest entries at the top. Each entry records what was done, what was verified, 
 
 ## 2026-10-20: Phase 2 done
 - `python -m stp.cli phase2`: geometry-only reads (pyogrio, `columns=[]`), `gpd.clip`, rasterise on the proximity grid, exact EDT distances, NoData outside the boundary. Writes COGs and GeoParquet (clipped vectors) to `outputs/phase2/`.
-- Parity: clipped vectors identical (counts, length/area, 0 m?? symmetric difference); burned pixels identical; distances 99.82???99.97% within 1 cm. The rest are GDAL Proximity overestimates (always QGIS > ours, max 5.72% relative), so the pipeline's values are exact. Details in `docs/parity.md`.
+- Parity: clipped vectors identical (counts, length/area, 0 m² symmetric difference); burned pixels identical; distances 99.82–99.97% within 1 cm. The rest are GDAL Proximity overestimates (always QGIS > ours, max 5.72% relative), so the pipeline's values are exact. Details in `docs/parity.md`.
 - 20 unit tests pass; ruff clean. Roads take ~43 s (42,798 lines); the others ~3 s each.
 - **Next (Phase 3):** K-Means land cover. 3a: reproduce the original (k=5, void included), also run on the QGIS stack because of the B11 artefact; match labels to `ML_KMeans_LULC_Bhopal.tif`. 3b: proper mask, choose k.
 
@@ -96,7 +96,7 @@ Newest entries at the top. Each entry records what was done, what was verified, 
 ## 2026-10-20: Phase 0 started
 - Created the repo with `PLAN.md`, `config.yaml`, `environment.yml`, `pyproject.toml` and `docs/qgis_workflow.md`.
 - Recovered the QGIS parameters from `user-history.db` (63 runs) and from inspecting the rasters; see `docs/qgis_workflow.md`.
-- Verified reference numbers: 46 final sites / 1,254,202 m??; suitability range 3.42???8.48 (later corrected to 3.06???8.48 at full resolution).
+- Verified reference numbers: 46 final sites / 1,254,202 m²; suitability range 3.42–8.48 (later corrected to 3.06–8.48 at full resolution).
 - **Next:** build the conda env (`conda env create -f environment.yml`), check imports, then start Phase 1.
 - Repo published: https://github.com/vyom-nikhra/bhopal-stp-siting (public).
 - Planning boundary source: DataMeet Municipal_Spatial_Data, CC BY 4.0 (attributed in the README).
