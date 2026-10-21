@@ -33,3 +33,6 @@ myenv/
 Thumbs.db
 .vscode/
 .idea/
+
+# local tool config
+.claude/
